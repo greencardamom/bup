@@ -197,6 +197,76 @@ def fetch_wikitext_batch(titles, user_agent=None, timeout=90, max_retries=4):
     return result
 
 
+def fetch_revids_batch(titles, user_agent=None, timeout=60, max_retries=4):
+    """Fetch the current lastrevid for many titles (<=50) in ONE API call via
+    prop=info (tiny payloads — no article body). Returns
+    {requested_title: lastrevid-or-None}; None = missing page or fetch failure
+    (caller skips). POST (same reasons as fetch_wikitext_batch); redirects not
+    followed; same 429/503/maxlag backoff.
+
+    Phase 1 of the verifier: compare these against the stored `revid` to find
+    which pages were edited, so only those need a content fetch.
+    """
+    result = {t: None for t in titles}
+    if not titles:
+        return result
+    params = {
+        "action": "query",
+        "prop": "info",
+        "titles": "|".join(titles),
+        "format": "json",
+        "formatversion": 2,
+        "maxlag": 5,
+    }
+    headers = {"User-Agent": user_agent} if user_agent else {}
+
+    delay = 1.0
+    for attempt in range(max_retries + 1):
+        try:
+            r = requests.post(API_URL, data=params, headers=headers,
+                              timeout=timeout)
+        except requests.RequestException:
+            return result
+
+        if r.status_code in (429, 503):
+            if attempt >= max_retries:
+                return result
+            time.sleep(_retry_after(r, delay))
+            delay *= 2
+            continue
+        if r.status_code != 200:
+            return result
+
+        try:
+            data = r.json()
+        except ValueError:
+            return result
+
+        err = data.get("error")
+        if err and err.get("code") == "maxlag":
+            if attempt >= max_retries:
+                return result
+            time.sleep(_retry_after(r, delay))
+            delay *= 2
+            continue
+
+        query = data.get("query", {})
+        norm = {n.get("from"): n.get("to")
+                for n in query.get("normalized", [])}
+        by_title = {}
+        for pg in query.get("pages", []):
+            if pg.get("missing"):
+                continue
+            rid = pg.get("lastrevid")
+            if rid is not None:
+                by_title[pg["title"]] = int(rid)
+        for t in titles:
+            result[t] = by_title.get(norm.get(t, t))
+        return result
+
+    return result
+
+
 def _retry_after(resp, default):
     try:
         return float(resp.headers.get("Retry-After", default))

@@ -38,10 +38,13 @@ CREATE TABLE IF NOT EXISTS pages (
     ref_count  INTEGER NOT NULL DEFAULT 0,
     sim_count  INTEGER NOT NULL DEFAULT 0,
     book_count INTEGER NOT NULL DEFAULT 0,
+    revid      INTEGER NOT NULL DEFAULT 0,
     citations  TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_pages_page ON pages(page);
 """
+# `revid` is the article's lastrevid as of the last verify; 0 = never verified.
+# verify.py uses it to skip pages that haven't been edited since last checked.
 
 
 def connect(path=None):
@@ -126,10 +129,11 @@ def get_page_by_title(conn, title):
 
 
 def fetch_page_batch(conn, after_id, limit):
-    """Pages with id > after_id ascending (for the verifier's batched pass)."""
+    """Pages with id > after_id ascending (for the verifier's batched pass).
+    Includes `revid` so the verifier can skip unedited pages."""
     cur = conn.execute(
-        "SELECT id, page, count, ref_count, sim_count, book_count, citations "
-        "FROM pages WHERE id > ? ORDER BY id LIMIT ?", (after_id, limit))
+        "SELECT id, page, count, ref_count, sim_count, book_count, revid, "
+        "citations FROM pages WHERE id > ? ORDER BY id LIMIT ?", (after_id, limit))
     return [_row_with_citations(r) for r in cur.fetchall()]
 
 
@@ -152,6 +156,12 @@ def _row_with_citations(row):
 
 
 # --- Write helpers --------------------------------------------------------
+
+def set_revid(conn, page_id, revid):
+    """Record the lastrevid we just verified this page against."""
+    conn.execute("UPDATE pages SET revid = ? WHERE id = ?", (int(revid), page_id))
+    conn.commit()
+
 
 def replace_citations(conn, page_id, citations):
     """Set a page's citations to `citations`, recomputing counts. If the list
