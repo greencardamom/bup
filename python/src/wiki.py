@@ -126,6 +126,10 @@ def fetch_wikitext_batch(titles, user_agent=None, timeout=90, max_retries=4):
     text, which looks_like_article() then rejects). Honors 429/503 Retry-After
     and maxlag with backoff; on any failure returns the dict with None values
     (caller skips those, retries next run).
+
+    Uses POST: 40 long, URL-encoded titles can exceed the ~8 KB request-line
+    limit on a GET, so the params go in the request body (the MediaWiki API
+    recommends POST for many titles; reads work fine over POST).
     """
     result = {t: None for t in titles}
     if not titles:
@@ -145,8 +149,8 @@ def fetch_wikitext_batch(titles, user_agent=None, timeout=90, max_retries=4):
     delay = 1.0
     for attempt in range(max_retries + 1):
         try:
-            r = requests.get(API_URL, params=params, headers=headers,
-                             timeout=timeout)
+            r = requests.post(API_URL, data=params, headers=headers,
+                              timeout=timeout)
         except requests.RequestException:
             return result
 
