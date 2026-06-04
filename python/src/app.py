@@ -316,11 +316,8 @@ def ondemand():
     if not pagename:
         return flask.redirect(flask.url_for('main'))
 
-    # On-demand searches the full archive first (was the out.json.all grep),
-    # falling back to the worklist.
-    record = dbmod.get_archive_page(get_db(), pagename)
-    if record is None:
-        record = _record_by_title(get_db(), pagename)
+    # On-demand runs the bot on any article in the current worklist, by title.
+    record = _record_by_title(get_db(), pagename)
     if record is None:
         return flask.redirect(flask.url_for('static', filename='nolinks.html'))
 

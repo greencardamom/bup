@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 #
-# SQLite data layer for bup. Replaces the old out.json / out.json.all JSONL
-# files and the awk+jq+grep+sed access pattern.
+# SQLite data layer for bup. Replaces the old out.json JSONL file and the
+# awk+jq+grep+sed access pattern.
 #
-# Two tables:
+# One table:
 #   pages    - the working list (imported from out.json). Its INTEGER PRIMARY
 #              KEY `id` is assigned in file order, so it is stable and is what
-#              the /preview/<id> and /runbot/<id> routes reference.
-#   archive  - the older full archive (imported from out.json.all), keyed by
-#              page title, used by the on-demand route to run the bot against
-#              any precomputed page.
+#              the /preview/<id> and /runbot/<id> routes reference. The
+#              on-demand route looks pages up by title.
 #
 # Citations are stored as a JSON text blob per row since they are always
 # consumed together for a single page.
@@ -44,16 +42,6 @@ CREATE TABLE IF NOT EXISTS pages (
 );
 CREATE INDEX IF NOT EXISTS idx_pages_done ON pages(done, id);
 CREATE INDEX IF NOT EXISTS idx_pages_page ON pages(page);
-
-CREATE TABLE IF NOT EXISTS archive (
-    page       TEXT    PRIMARY KEY,
-    count      INTEGER NOT NULL DEFAULT 0,
-    ref_count  INTEGER NOT NULL DEFAULT 0,
-    sim_count  INTEGER NOT NULL DEFAULT 0,
-    book_count INTEGER NOT NULL DEFAULT 0,
-    done       INTEGER NOT NULL DEFAULT 0,
-    citations  TEXT    NOT NULL
-);
 """
 
 
@@ -86,15 +74,6 @@ def get_page(conn, page_id):
     cur = conn.execute(
         "SELECT id, page, count, ref_count, sim_count, book_count, done, "
         "citations FROM pages WHERE id = ?", (page_id,))
-    row = cur.fetchone()
-    return _row_with_citations(row)
-
-
-def get_archive_page(conn, page_title):
-    """Fetch one archive row by title (replaces the out.json.all grep)."""
-    cur = conn.execute(
-        "SELECT page, count, ref_count, sim_count, book_count, done, "
-        "citations FROM archive WHERE page = ?", (page_title,))
     row = cur.fetchone()
     return _row_with_citations(row)
 

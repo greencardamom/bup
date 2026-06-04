@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
 #
-# One-time importer: JSONL cache files -> SQLite.
+# One-time importer: out.json (JSONL) -> SQLite `pages` table.
 #
-#   out.json      -> pages    (the working list; id assigned in file order)
-#   out.json.all  -> archive  (older full archive, keyed by title)
-#
-# Idempotent per-table: re-running drops and rebuilds the target table so the
-# import always reflects the current JSONL file. Safe to run repeatedly.
+# Idempotent: re-running drops and rebuilds the pages table so the import
+# always reflects the current out.json. Safe to run repeatedly.
 #
 # Usage:
-#   python migrate.py [--db PATH] [--worklist out.json] [--archive out.json.all]
+#   python migrate.py [--db PATH] [--worklist out.json]
 #
-# The old JSONL files are left untouched.
+# out.json is left untouched.
 
 import os
 import sys
@@ -85,39 +82,10 @@ def load_pages(conn, path):
     return total
 
 
-def load_archive(conn, path):
-    """Import out.json.all into archive, keyed by title (last wins on dupes)."""
-    conn.execute("DROP TABLE IF EXISTS archive")
-    dbmod.init_schema(conn)
-    sql = ("INSERT OR REPLACE INTO archive "
-           "(page, count, ref_count, sim_count, book_count, done, citations) "
-           "VALUES (?,?,?,?,?,?,?)")
-    batch, total = [], 0
-    for _lineno, rec in _iter_records(path):
-        batch.append((
-            rec.get("page", ""),
-            _num(rec, "count"), _num(rec, "ref_count"),
-            _num(rec, "sim_count"), _num(rec, "book_count"),
-            _done(rec),
-            json.dumps(rec.get("citations", []), ensure_ascii=False),
-        ))
-        if len(batch) >= BATCH:
-            conn.executemany(sql, batch)
-            total += len(batch)
-            batch = []
-    if batch:
-        conn.executemany(sql, batch)
-        total += len(batch)
-    conn.commit()
-    return total
-
-
 def main():
-    ap = argparse.ArgumentParser(description="Import JSONL cache into SQLite")
+    ap = argparse.ArgumentParser(description="Import out.json into SQLite")
     ap.add_argument("--db", default=None, help="SQLite path (default db.db_path())")
     ap.add_argument("--worklist", default=os.path.join(DEFAULT_DB_DIR, "out.json"))
-    ap.add_argument("--archive", default=os.path.join(DEFAULT_DB_DIR, "out.json.all"))
-    ap.add_argument("--skip-archive", action="store_true")
     args = ap.parse_args()
 
     conn = dbmod.connect(args.db)
@@ -129,18 +97,11 @@ def main():
     else:
         print("pages:   SKIP (not found: %s)" % args.worklist)
 
-    if not args.skip_archive and os.path.exists(args.archive):
-        n = load_archive(conn, args.archive)
-        print("archive: imported %d rows from %s" % (n, args.archive))
-    else:
-        print("archive: SKIP")
-
     # Quick integrity summary.
     p_total = conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0]
     p_done = conn.execute("SELECT COUNT(*) FROM pages WHERE done=1").fetchone()[0]
-    a_total = conn.execute("SELECT COUNT(*) FROM archive").fetchone()[0]
-    print("summary: pages=%d (done=%d), archive=%d, db=%s"
-          % (p_total, p_done, a_total, args.db or dbmod.db_path()))
+    print("summary: pages=%d (done=%d), db=%s"
+          % (p_total, p_done, args.db or dbmod.db_path()))
     conn.close()
 
 

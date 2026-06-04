@@ -3,7 +3,7 @@
 # Core book-linking logic, ported from awk/cli.awk. Deliberately free of Flask
 # and config dependencies so it can be unit-tested in isolation.
 #
-# A "page record" here is the dict returned by db.get_page / db.get_archive_page:
+# A "page record" here is the dict returned by db.get_page:
 #   {id, page, count, ref_count, sim_count, book_count, done, citations: [...]}
 # where each citation is {oldcite, newcite, iaid, meta}.
 
