@@ -35,6 +35,9 @@ import reconcile
 from api import api as api_blueprint
 
 app = flask.Flask(__name__)
+# Emit real UTF-8 characters in JSON (e.g. en dash "–") instead of \uXXXX
+# escapes. application/json is UTF-8 by spec, so consumers parse both identically.
+app.json.ensure_ascii = False
 app.register_blueprint(api_blueprint, url_prefix="/api/v1")
 
 cache.init_app(app=app, config={"CACHE_TYPE": "filesystem",
