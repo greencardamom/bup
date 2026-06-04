@@ -3,6 +3,8 @@
 # Code is versioned; data, secrets, virtualenvs, and runtime files are NOT.
 # ---------------------------------------------------------------------------
 
+0README
+
 # --- Secrets (real config lives only on Toolforge; commit the .example) ---
 config.yaml
 python/src/config.yaml
@@ -17,6 +19,9 @@ __pycache__/
 python/venv/
 venv/
 .venv/
+
+# --- Local-only deploy helper (machine-specific path; not deployed) ---
+bupsave.sh
 
 # --- Editor / backup / swap files ---
 *.save

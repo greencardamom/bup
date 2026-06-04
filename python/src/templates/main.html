@@ -1,15 +1,11 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
-table.sortable thead th {
-  text-align: right;
-}
-table.sortable tbody {
-  text-align: right;
-}
-table.sortable tfoot {
-  text-align: right;
-}
+/* Text columns (Preview, Run bot, Article) left-aligned; numeric columns
+   right-aligned. Headers use the same class as their cells so each header
+   sits directly over its column's data. */
+table.sortable th.lcol, table.sortable td.lcol { text-align: left; }
+table.sortable th.rcol, table.sortable td.rcol { text-align: right; }
 {% endblock %}
 
 {% block body %}
@@ -28,25 +24,25 @@ Optional:
 <table class="sortable">
 <thead>
   <tr>
-    <th><u>Preview</u></th>
-    <th><u>Run bot</u></th>
-    <th><u>Article</u></th>
-    <th><u>Regular books</u></th>
-    <th><u>SIM books</u></th>
-    <th><u>Refactor existing books</u></th>
-    <th><u>Total avail. books</u></th>
+    <th class="lcol"><u>Preview</u></th>
+    <th class="lcol"><u>Run bot</u></th>
+    <th class="lcol"><u>Article</u></th>
+    <th class="rcol"><u>Regular books</u></th>
+    <th class="rcol"><u>SIM books</u></th>
+    <th class="rcol"><u>Refactor existing books</u></th>
+    <th class="rcol"><u>Total avail. books</u></th>
   </tr>
 </thead>
 <tbody>
   {% for r in rows %}
   <tr>
-    <td><a href="{{ url_for('preview', id=r.id) }}" target="_blank" rel="noopener noreferrer"><input type="submit" value="Preview"></a></td>
-    <td><a href="{{ url_for('runbot', id=r.id) }}" target="_blank" rel="noopener noreferrer"><input type="submit" value="Run bot"></a></td>
-    <td><a href="https://en.wikipedia.org/wiki/{{ r.page }}" target="_blank" rel="noopener noreferrer">{{ r.page }}</a></td>
-    <td>{{ r.book_count }}</td>
-    <td>{{ r.sim_count }}</td>
-    <td>{{ r.ref_count }}</td>
-    <td>{{ r.count }}</td>
+    <td class="lcol"><a href="{{ url_for('preview', id=r.id) }}" target="_blank" rel="noopener noreferrer"><input type="submit" value="Preview"></a></td>
+    <td class="lcol"><a href="{{ url_for('runbot', id=r.id) }}" target="_blank" rel="noopener noreferrer"><input type="submit" value="Run bot"></a></td>
+    <td class="lcol"><a href="https://en.wikipedia.org/wiki/{{ r.page }}" target="_blank" rel="noopener noreferrer">{{ r.page }}</a></td>
+    <td class="rcol">{{ r.book_count }}</td>
+    <td class="rcol">{{ r.sim_count }}</td>
+    <td class="rcol">{{ r.ref_count }}</td>
+    <td class="rcol">{{ r.count }}</td>
   </tr>
   {% endfor %}
 </tbody>
