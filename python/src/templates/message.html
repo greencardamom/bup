@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+
+{% block body %}
+<br>{{ message|safe }}<br><br>
+<a href="{{ url_for('main') }}">Return to list.</a>
+{% endblock %}

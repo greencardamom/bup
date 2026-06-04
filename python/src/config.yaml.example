@@ -1,0 +1,17 @@
+# Copy this file to config.yaml and fill in real values.
+#   cp config.yaml.example config.yaml
+# config.yaml is gitignored — NEVER commit real secrets.
+
+# Flask session signing key. Set to a long, random, secret string.
+SECRET_KEY: "CHANGE_ME_to_a_long_random_secret_string"
+
+# Greeting shown on the login page.
+GREETING: "Welcome to BUP - Books Up!"
+
+# MediaWiki OAuth endpoint (handshake happens on Meta).
+OAUTH_MWURI: "https://meta.wikimedia.org/w/index.php"
+
+# OAuth 1.0a consumer credentials, from:
+#   https://meta.wikimedia.org/wiki/Special:OAuthConsumerRegistration
+CONSUMER_KEY: "your-oauth-consumer-key"
+CONSUMER_SECRET: "your-oauth-consumer-secret"

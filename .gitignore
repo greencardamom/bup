@@ -1,0 +1,43 @@
+# ---------------------------------------------------------------------------
+# bup .gitignore
+# Code is versioned; data, secrets, virtualenvs, and runtime files are NOT.
+# ---------------------------------------------------------------------------
+
+# --- Secrets (real config lives only on Toolforge; commit the .example) ---
+config.yaml
+python/src/config.yaml
+
+# --- Python bytecode / packaging ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# --- Virtualenv (recreate on Toolforge from requirements.txt) ---
+python/venv/
+venv/
+.venv/
+
+# --- Editor / backup / swap files ---
+*.save
+*.save.*
+*.bak
+*.swp
+*.tmp
+*~
+
+# --- pywikibot / API caches and runtime control ---
+python/src/apicache-py3/
+python/src/flask_session/
+python/src/throttle.ctrl
+
+# --- Flask filesystem cache ---
+cache/*
+!cache/.gitkeep
+
+# --- Data + runtime: everything under db/ is generated or precomputed ---
+#   out.json / out.json.all : precomputed caches (built by noisbn)
+#   bup.db (+ -wal/-shm)    : SQLite db (built by migrate.py on deploy)
+#   logs, locks, temp tables: runtime state
+db/*
+!db/.gitkeep

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+table.sortable tbody {
+  text-align: right;
+}
+table.sortable tfoot {
+  text-align: right;
+}
+{% endblock %}
+
+{% block body %}
+<font size="+2">BUP - Books Up!</font><br><br>
+<a href="{{ url_for('about') }}">About</a> | <a href="{{ url_for('logout') }}">Logout</a> ({{ username }})<br><br>
+<input type="submit" value="Preview"> = show proposed edit. <input type="submit" value="Run bot"> = make the edit.
+{% if can_ondemand %}
+Optional:
+<form action="{{ url_for('ondemand') }}" method="POST">
+  <input name="text" placeholder="<article name>">
+  <input type="submit" value="Run bot on <article name>">
+</form>
+{% endif %}
+
+<center>
+<table class="sortable">
+<thead>
+  <tr>
+    <th><u>Preview</u></th>
+    <th><u>Run bot</u></th>
+    <th><u>Article</u></th>
+    <th><u>Regular books</u></th>
+    <th><u>SIM books</u></th>
+    <th><u>Refactor existing books</u></th>
+    <th><u>Total avail. books</u></th>
+  </tr>
+</thead>
+<tbody>
+  {% for r in rows %}
+  <tr>
+    <td><a href="{{ url_for('preview', id=r.id) }}" target="_blank" rel="noopener noreferrer"><input type="submit" value="Preview"></a></td>
+    <td><a href="{{ url_for('runbot', id=r.id) }}" target="_blank" rel="noopener noreferrer"><input type="submit" value="Run bot"></a></td>
+    <td><a href="https://en.wikipedia.org/wiki/{{ r.page }}" target="_blank" rel="noopener noreferrer">{{ r.page }}</a></td>
+    <td>{{ r.book_count }}</td>
+    <td>{{ r.sim_count }}</td>
+    <td>{{ r.ref_count }}</td>
+    <td>{{ r.count }}</td>
+  </tr>
+  {% endfor %}
+</tbody>
+<tfoot></tfoot>
+</table>
+</center>
+{% endblock %}

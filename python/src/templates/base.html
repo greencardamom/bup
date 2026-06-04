@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>BUP - Books Up!</title>
+<script type="text/javascript" src="{{ url_for('static', filename='sorttable.js') }}"></script>
+<style type="text/css">
+th, td {
+  padding: 3px !important;
+}
+table.sortable thead {
+  background-color:#333;
+  color:#c1c1c1;
+  font-weight: bold;
+  cursor: default;
+}
+mark {
+  background-color: gainsboro;
+  color: black;
+}
+th {
+  font-size: 80%;
+}
+td {
+  font-size: 70%;
+}
+mark.red {
+  color:#ff0000;
+  background: none;
+}
+{% block extra_css %}{% endblock %}
+</style>
+</head>
+<body>
+{% block body %}{% endblock %}
+</body>
+</html>

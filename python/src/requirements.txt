@@ -1,0 +1,11 @@
+flask
+pyyaml
+mwoauth
+pywikibot
+mwparserfromhell
+requests
+requests_oauthlib
+requests_toolbelt
+Flask-Session
+redis
+flask_caching

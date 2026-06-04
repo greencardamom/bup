@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+table.sortable tbody {
+  text-align: left;
+}
+table.sortable tfoot {
+  text-align: right;
+}
+{% endblock %}
+
+{% block body %}
+<center><h2>BUP - Books Up!</h2></center>
+<center><h3>Analysis: <a href="https://en.wikipedia.org/wiki/{{ page }}">{{ page }}</a></h3></center>
+{% if showexpired %}
+<center>Original cites: {{ numofcites }}. Proposed cites available: {{ available }}</center>
+{% else %}
+<center>Proposed cites available: {{ available }}</center>
+{% endif %}
+<center><a href="{{ url_for('main') }}">Return to article list</a></center>
+
+<center>
+<table class="sortable">
+<thead>
+  <tr>
+    <th><u>Original cite</u></th>
+    <th><u>Proposed cite</u></th>
+  </tr>
+</thead>
+<tbody>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.oldcite }}</td>
+    <td>{{ r.newcite_html|safe }}</td>
+  </tr>
+  {% endfor %}
+</tbody>
+<tfoot></tfoot>
+</table>
+</center>
+{% endblock %}
