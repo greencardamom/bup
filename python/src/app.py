@@ -359,7 +359,7 @@ def _run_bot_on_record(record, username, id_for_done=None, title_for_done=None):
                     "from list." % page)
 
     access_token = flask.session.get('access_token', None)
-    summary = "Bluelinking %d books for [[WP:V|verifiability]]" % count
+    summary = "Added book" if count == 1 else "Added books"
 
     if edit_wiki_page(page, new_content, access_token, summary):
         _mark_done(id_for_done, title_for_done, page)
