@@ -11,11 +11,25 @@
 # The text content cannot come from the SQL Wiki Replicas: the `text` table
 # (revision content) is not replicated. The API is the only live source.
 
+import re
 import time
 
 import requests
 
 API_URL = "https://en.wikipedia.org/w/api.php"
+
+_REDIRECT_RE = re.compile(r"^\s*#redirect", re.IGNORECASE)
+
+
+def looks_like_article(content):
+    """Safety gate for the verifier: only treat content as a real article (and
+    thus trust an absent oldcite) if the fetch clearly succeeded. Rejects empty
+    / tiny / missing pages and redirects, so a bad read never prunes."""
+    if not content or len(content) < 200:
+        return False
+    if _REDIRECT_RE.match(content):
+        return False
+    return True
 
 # WMF User-Agent policy:
 #   https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
@@ -102,6 +116,81 @@ def fetch_wikitext(page, auth=None, user_agent=None, timeout=60,
         return _extract_content(data)
 
     return ""
+
+
+def fetch_wikitext_batch(titles, user_agent=None, timeout=90, max_retries=4):
+    """Fetch current wiki text for many titles (<=50) in ONE API call.
+
+    Returns {requested_title: content-or-None}. Titles are looked up exactly;
+    redirects are NOT followed (a redirect page returns its own '#redirect ...'
+    text, which looks_like_article() then rejects). Honors 429/503 Retry-After
+    and maxlag with backoff; on any failure returns the dict with None values
+    (caller skips those, retries next run).
+    """
+    result = {t: None for t in titles}
+    if not titles:
+        return result
+    params = {
+        "action": "query",
+        "prop": "revisions",
+        "titles": "|".join(titles),
+        "rvslots": "main",
+        "rvprop": "content",
+        "format": "json",
+        "formatversion": 2,
+        "maxlag": 5,
+    }
+    headers = {"User-Agent": user_agent} if user_agent else {}
+
+    delay = 1.0
+    for attempt in range(max_retries + 1):
+        try:
+            r = requests.get(API_URL, params=params, headers=headers,
+                             timeout=timeout)
+        except requests.RequestException:
+            return result
+
+        if r.status_code in (429, 503):
+            if attempt >= max_retries:
+                return result
+            time.sleep(_retry_after(r, delay))
+            delay *= 2
+            continue
+        if r.status_code != 200:
+            return result
+
+        try:
+            data = r.json()
+        except ValueError:
+            return result
+
+        err = data.get("error")
+        if err and err.get("code") == "maxlag":
+            if attempt >= max_retries:
+                return result
+            time.sleep(_retry_after(r, delay))
+            delay *= 2
+            continue
+
+        query = data.get("query", {})
+        # The API normalizes some titles (underscores, capitalization); map the
+        # returned (normalized) title back to what we asked for.
+        norm = {n.get("from"): n.get("to")
+                for n in query.get("normalized", [])}
+        by_title = {}
+        for pg in query.get("pages", []):
+            if pg.get("missing"):
+                continue
+            try:
+                by_title[pg["title"]] = \
+                    pg["revisions"][0]["slots"]["main"]["content"]
+            except (KeyError, IndexError, TypeError):
+                continue
+        for t in titles:
+            result[t] = by_title.get(norm.get(t, t))
+        return result
+
+    return result
 
 
 def _retry_after(resp, default):

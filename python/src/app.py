@@ -31,8 +31,11 @@ from common import cache  # see common.py
 import db as dbmod
 import bookbot
 import wiki
+import reconcile
+from api import api as api_blueprint
 
 app = flask.Flask(__name__)
+app.register_blueprint(api_blueprint, url_prefix="/api/v1")
 
 cache.init_app(app=app, config={"CACHE_TYPE": "filesystem",
                                  'CACHE_DIR': '/data/project/bup/www/cache'})
@@ -271,7 +274,8 @@ def preview(id):
     rows, numofcites, available = bookbot.preview_rows(record, wikitext)
 
     if available == 0:
-        dbmod.mark_done(get_db(), id)
+        # No oldcites remain in the article -> prune them (drops the page).
+        reconcile.reconcile_page(get_db(), record, wikitext)
         log_line('errorlog.txt', "%s ---- %d ---- No active cites found (1)"
                  % (record['page'], numofcites))
         return flask.render_template(
@@ -299,7 +303,7 @@ def runbot(id):
     if record is None:
         return flask.redirect(flask.url_for('main'))
 
-    return _run_bot_on_record(record, username, id_for_done=id)
+    return _run_bot_on_record(record, username)
 
 
 # --- Run bot on an arbitrary article (on-demand) --------------------------
@@ -317,37 +321,28 @@ def ondemand():
         return flask.redirect(flask.url_for('main'))
 
     # On-demand runs the bot on any article in the current worklist, by title.
-    record = _record_by_title(get_db(), pagename)
+    record = dbmod.get_page_by_title(get_db(), pagename)
     if record is None:
         return flask.redirect(flask.url_for('static', filename='nolinks.html'))
 
-    return _run_bot_on_record(record, username, title_for_done=pagename)
+    return _run_bot_on_record(record, username)
 
 
 # --- Shared run-bot implementation ----------------------------------------
 
-def _record_by_title(conn, title):
-    cur = conn.execute(
-        "SELECT id, page, count, ref_count, sim_count, book_count, done, "
-        "citations FROM pages WHERE page = ?", (title,))
-    row = cur.fetchone()
-    if row is None:
-        return None
-    d = dict(row)
-    d["citations"] = json.loads(d["citations"])
-    return d
-
-
-def _run_bot_on_record(record, username, id_for_done=None, title_for_done=None):
-    """Fetch the live article, apply edits, post, mark done. Shared by
-    runbot (worklist) and ondemand. Returns a rendered response."""
+def _run_bot_on_record(record, username):
+    """Fetch the live article, apply edits, post, then prune the resolved
+    citations (logging them). Shared by runbot (worklist) and ondemand."""
     page = record['page']
     wikitext = read_wikitext(page)
+    present_before = set(c['oldcite'] for c in record['citations']
+                         if c.get('oldcite') and c['oldcite'] in wikitext)
     new_content, count = bookbot.apply_edits(record, wikitext)
 
     if count == 0:
-        # Nothing to do; drop from the worklist (was "No active cites (2)").
-        _mark_done(id_for_done, title_for_done, page)
+        # Nothing matched. Reconcile against the text we just read: prune any
+        # citations already gone (drops the page if it empties).
+        reconcile.reconcile_page(get_db(), record, wikitext)
         log_line('errorlog.txt',
                  "%s ---- %d ---- No active cites found (2)" % (page, count))
         return flask.render_template(
@@ -359,7 +354,10 @@ def _run_bot_on_record(record, username, id_for_done=None, title_for_done=None):
     summary = "Added book" if count == 1 else "Added books"
 
     if edit_wiki_page(page, new_content, access_token, summary):
-        _mark_done(id_for_done, title_for_done, page)
+        # Citations bup just applied (present before, now replaced) -> bupUI;
+        # reconcile against the content we posted (prunes them, drops the page).
+        reconcile.reconcile_page(get_db(), record, new_content,
+                                 applied_oldcites=present_before)
         log_line('log.txt', "%s ---- %s ---- %d ---- %s ---- Success"
                  % (page, username, count, date.today()))
         return flask.render_template('done.html', page=page, count=count)
@@ -367,12 +365,3 @@ def _run_bot_on_record(record, username, id_for_done=None, title_for_done=None):
         log_line('errorlog.txt', "%s ---- %s ---- %d ---- %s ---- Error posting"
                  % (page, username, count, date.today()))
         return flask.redirect(flask.url_for('main'))
-
-
-def _mark_done(id_for_done, title_for_done, page):
-    conn = get_db()
-    if id_for_done is not None:
-        dbmod.mark_done(conn, id_for_done)
-    else:
-        # On-demand: mark the worklist row done if the title is present there.
-        dbmod.mark_done_by_title(conn, title_for_done or page)

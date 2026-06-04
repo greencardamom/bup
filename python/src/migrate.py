@@ -33,14 +33,6 @@ def _num(rec, key):
         return 0
 
 
-def _done(rec):
-    # done is stored as a string "0"/"1" in the JSONL; normalize to int.
-    try:
-        return 1 if int(rec.get("done", 0) or 0) else 0
-    except (TypeError, ValueError):
-        return 0
-
-
 def _iter_records(path):
     """Yield (lineno, record) for each non-blank JSONL line; skip bad lines."""
     with open(path, "r", encoding="utf-8") as fh:
@@ -60,15 +52,14 @@ def load_pages(conn, path):
     conn.execute("DROP TABLE IF EXISTS pages")
     dbmod.init_schema(conn)
     sql = ("INSERT INTO pages "
-           "(page, count, ref_count, sim_count, book_count, done, citations) "
-           "VALUES (?,?,?,?,?,?,?)")
+           "(page, count, ref_count, sim_count, book_count, citations) "
+           "VALUES (?,?,?,?,?,?)")
     batch, total = [], 0
     for _lineno, rec in _iter_records(path):
         batch.append((
             rec.get("page", ""),
             _num(rec, "count"), _num(rec, "ref_count"),
             _num(rec, "sim_count"), _num(rec, "book_count"),
-            _done(rec),
             json.dumps(rec.get("citations", []), ensure_ascii=False),
         ))
         if len(batch) >= BATCH:
@@ -99,9 +90,7 @@ def main():
 
     # Quick integrity summary.
     p_total = conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0]
-    p_done = conn.execute("SELECT COUNT(*) FROM pages WHERE done=1").fetchone()[0]
-    print("summary: pages=%d (done=%d), db=%s"
-          % (p_total, p_done, args.db or dbmod.db_path()))
+    print("summary: pages=%d, db=%s" % (p_total, args.db or dbmod.db_path()))
     conn.close()
 
 

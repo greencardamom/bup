@@ -4,7 +4,7 @@
 # and config dependencies so it can be unit-tested in isolation.
 #
 # A "page record" here is the dict returned by db.get_page:
-#   {id, page, count, ref_count, sim_count, book_count, done, citations: [...]}
+#   {id, page, count, ref_count, sim_count, book_count, citations: [...]}
 # where each citation is {oldcite, newcite, iaid, meta}.
 
 import re
