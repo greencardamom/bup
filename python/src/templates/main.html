@@ -1,9 +1,13 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
-/* Text columns (Preview, Run bot, Article) left-aligned; numeric columns
-   right-aligned. Headers use the same class as their cells so each header
-   sits directly over its column's data. */
+/* Center the whole page (header text + table) horizontally. Modern CSS
+   replacement for the obsolete <center> element. */
+body { text-align: center; }
+table.sortable { margin-left: auto; margin-right: auto; }
+/* Within the table, text columns (Preview, Run bot, Article) stay
+   left-aligned and numeric columns right-aligned; each header uses the
+   same class as its cells so it sits directly over its column's data. */
 table.sortable th.lcol, table.sortable td.lcol { text-align: left; }
 table.sortable th.rcol, table.sortable td.rcol { text-align: right; }
 {% endblock %}
