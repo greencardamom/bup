@@ -11,6 +11,11 @@ GREETING: "Welcome to BUP - Books Up!"
 # MediaWiki OAuth endpoint (handshake happens on Meta).
 OAUTH_MWURI: "https://meta.wikimedia.org/w/index.php"
 
+# Contact info for the User-Agent header on API reads (WMF UA policy).
+# A tool URL is sufficient; an email is optional. The logged-in username is
+# appended automatically.
+UA_CONTACT: "https://bup.toolforge.org"
+
 # OAuth 1.0a consumer credentials, from:
 #   https://meta.wikimedia.org/wiki/Special:OAuthConsumerRegistration
 CONSUMER_KEY: "your-oauth-consumer-key"

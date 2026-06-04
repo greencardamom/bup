@@ -6,7 +6,8 @@
 # over a 223MB out.json JSONL cache. Rewritten to read/write a SQLite database
 # (see db.py / migrate.py) and render Jinja templates. The per-user mwoauth
 # edit flow is unchanged: edits are attributed to the logged-in Wikipedia user.
-# Live wiki text is read via the wikiget binary (see wiki.py).
+# Live wiki text is read via the MediaWiki API, signed with the logged-in
+# user's OAuth token for an authenticated (higher) read rate limit (see wiki.py).
 #
 # 'webservice restart' after modifying .py
 
@@ -28,7 +29,7 @@ from requests_toolbelt.utils import dump
 from common import cache  # see common.py
 import db as dbmod
 import bookbot
-from wiki import fetch_wikitext
+import wiki
 
 app = flask.Flask(__name__)
 
@@ -122,6 +123,26 @@ def edit_wiki_page(page_name, content, access_token, summary=None, bot=False):
             print(ddata.decode('utf-8'))
         return False
     return True
+
+
+def read_wikitext(page):
+    """Fetch current wiki text of `page`, signed with the logged-in user's
+    OAuth token (authenticated read rate limit) and a policy-compliant
+    User-Agent. Falls back to an anonymous read if no token is present."""
+    username = flask.session.get('username')
+    contact = app.config.get('UA_CONTACT', 'https://bup.toolforge.org')
+    user_agent = wiki.build_user_agent(contact, username)
+
+    token = flask.session.get('access_token')
+    auth = None
+    if token:
+        auth = OAuth1(
+            app.config['CONSUMER_KEY'],
+            app.config['CONSUMER_SECRET'],
+            token['key'],
+            token['secret'])
+
+    return wiki.fetch_wikitext(page, auth=auth, user_agent=user_agent)
 
 
 # --- Public / auth routes (unchanged behavior) ----------------------------
@@ -244,7 +265,7 @@ def preview(id):
         return flask.render_template(
             'message.html', message="Error finding record in database (1).")
 
-    wikitext = fetch_wikitext(record['page'])
+    wikitext = read_wikitext(record['page'])
     rows, numofcites, available = bookbot.preview_rows(record, wikitext)
 
     if available == 0:
@@ -322,7 +343,7 @@ def _run_bot_on_record(record, username, id_for_done=None, title_for_done=None):
     """Fetch the live article, apply edits, post, mark done. Shared by
     runbot (worklist) and ondemand. Returns a rendered response."""
     page = record['page']
-    wikitext = fetch_wikitext(page)
+    wikitext = read_wikitext(page)
     new_content, count = bookbot.apply_edits(record, wikitext)
 
     if count == 0:
