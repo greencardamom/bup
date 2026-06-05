@@ -72,6 +72,24 @@
 		$sum.val( cur ? cur + '; ' + text : text );
 	}
 
+	function esc( s ) {
+		return $( '<div>' ).text( s == null ? '' : s ).html();
+	}
+
+	// Render newcite as escaped HTML with its archive.org URL as a clickable
+	// blue link that opens in a new tab (so the editor can verify the target).
+	function renderNewcite( newcite, url ) {
+		var html = esc( newcite );
+		if ( url ) {
+			var u = esc( url );
+			if ( html.indexOf( u ) !== -1 ) {
+				html = html.split( u ).join(
+					'<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>' );
+			}
+		}
+		return html;
+	}
+
 	// ---- edit-page side: drop a stashed change into the edit form ---------
 
 	function applyStashToEditor() {
@@ -100,19 +118,28 @@
 	function injectStyle() {
 		if ( document.getElementById( 'booksup-style' ) ) { return; }
 		mw.util.addCSS(
-			'#booksup-panel{position:fixed;top:80px;right:16px;z-index:1000;width:420px;' +
-				'max-height:80vh;overflow:auto;background:#fff;border:1px solid #a2a9b1;' +
+			'#booksup-panel{position:fixed;top:80px;right:16px;z-index:1000;width:440px;' +
+				'max-height:82vh;overflow:auto;background:#fff;border:1px solid #a2a9b1;' +
 				'border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:13px;padding:0}' +
 			'#booksup-panel h3{margin:0;padding:8px 12px;background:#36c;color:#fff;' +
 				'font-size:14px;border-radius:4px 4px 0 0}' +
 			'#booksup-panel .booksup-body{padding:8px 12px}' +
 			'#booksup-panel ul{list-style:none;margin:0;padding:0}' +
-			'#booksup-panel li{padding:6px 0;border-bottom:1px solid #eaecf0}' +
+			'#booksup-panel li{padding:8px 0;border-bottom:1px solid #eaecf0}' +
+			'#booksup-panel li.bu-skipped{opacity:.45}' +
+			'#booksup-panel .bu-lbl{font-weight:bold;font-size:11px;color:#54595d;margin:4px 0 2px}' +
 			'#booksup-panel pre{white-space:pre-wrap;word-break:break-word;background:#f8f9fa;' +
-				'border:1px solid #eaecf0;padding:4px;margin:4px 0;font-size:11px}' +
+				'border:1px solid #eaecf0;padding:4px;margin:0;font-size:11px}' +
 			'#booksup-panel pre.new{background:#eaf3ff}' +
-			'#booksup-panel .booksup-foot{padding:8px 12px;border-top:1px solid #eaecf0;text-align:right}' +
-			'#booksup-panel button{margin-left:6px}'
+			'#booksup-panel pre.new a,#booksup-panel a.bu-ext{color:#3366cc;text-decoration:underline}' +
+			'#booksup-panel .bu-toggle{margin:6px 0 2px}' +
+			'#booksup-panel .bu-btn{margin-right:6px;padding:2px 12px;border:1px solid #a2a9b1;' +
+				'background:#f8f9fa;color:#202122;cursor:pointer;border-radius:2px;font-size:12px}' +
+			'#booksup-panel .bu-add.bu-on{background:#36c;border-color:#36c;color:#fff}' +
+			'#booksup-panel .bu-skip.bu-on{background:#d33;border-color:#d33;color:#fff}' +
+			'#booksup-panel .booksup-foot{position:sticky;bottom:0;background:#fff;' +
+				'padding:8px 12px;border-top:1px solid #eaecf0;text-align:right}' +
+			'#booksup-panel .booksup-foot button{margin-left:6px}'
 		);
 		$( '<span id="booksup-style">' ).appendTo( 'head' );
 	}
@@ -133,20 +160,29 @@
 		var $ul = $( '<ul>' ).appendTo( $body );
 
 		cites.forEach( function ( c, i ) {
-			var $li = $( '<li>' );
-			var $label = $( '<label>' );
-			$( '<input type="checkbox" checked>' )
-				.attr( 'data-i', i ).appendTo( $label );
-			$( '<a target="_blank" rel="noopener">' )
-				.attr( 'href', c.url ).text( ' ' + c.iaid + ' (' + c.type + ')' )
-				.appendTo( $label );
-			$label.appendTo( $li );
+			var $li = $( '<li>' ).attr( 'data-i', i );   // default: kept (= Add)
 
-			// expanded by default
-			var $det = $( '<details open>' ).appendTo( $li );
-			$( '<summary>' ).text( 'citation' ).appendTo( $det );
-			$( '<pre class="old">' ).text( c.oldcite ).appendTo( $det );
-			$( '<pre class="new">' ).text( c.newcite ).appendTo( $det );
+			$( '<div class="bu-lbl">' ).text( 'current' ).appendTo( $li );
+			$( '<pre class="old">' ).text( c.oldcite ).appendTo( $li );
+
+			var $plbl = $( '<div class="bu-lbl">' ).text( 'proposed ' ).appendTo( $li );
+			$( '<a class="bu-ext" target="_blank" rel="noopener">' )
+				.attr( 'href', c.url ).text( '↗ open link' ).appendTo( $plbl );
+			$( '<pre class="new">' ).html( renderNewcite( c.newcite, c.url ) ).appendTo( $li );
+
+			var $tog = $( '<div class="bu-toggle">' ).appendTo( $li );
+			var $add = $( '<button class="bu-btn bu-add bu-on">' ).text( 'Add' );
+			var $skip = $( '<button class="bu-btn bu-skip">' ).text( 'Skip' );
+			$add.on( 'click', function () {
+				$li.removeClass( 'bu-skipped' );
+				$add.addClass( 'bu-on' ); $skip.removeClass( 'bu-on' );
+			} );
+			$skip.on( 'click', function () {
+				$li.addClass( 'bu-skipped' );
+				$skip.addClass( 'bu-on' ); $add.removeClass( 'bu-on' );
+			} );
+			$tog.append( $add, $skip );
+
 			$li.appendTo( $ul );
 		} );
 
@@ -157,15 +193,14 @@
 			.text( inEdit ? 'Apply to editor' : 'Open in editor' )
 			.on( 'click', function () {
 				var chosen = [];
-				$panel.find( 'input:checked' ).each( function () {
+				$panel.find( 'li' ).not( '.bu-skipped' ).each( function () {
 					chosen.push( cites[ $( this ).attr( 'data-i' ) ] );
 				} );
 				if ( !chosen.length ) {
-					mw.notify( 'Nothing selected.', { title: 'BooksUp' } );
+					mw.notify( 'Nothing to add (all skipped).', { title: 'BooksUp' } );
 					return;
 				}
 				if ( inEdit ) {
-					// apply straight into the edit box you're in
 					var $t = $( '#wpTextbox1' );
 					$t.val( applyAll( $t.val() || '', chosen ) )
 						.trigger( 'change' ).trigger( 'input' );
@@ -175,7 +210,6 @@
 						( chosen.length === 1 ? '' : 's' ) +
 						' to the editor. Review and save.', { title: 'BooksUp' } );
 				} else {
-					// stash and open the edit window
 					sessionStorage.setItem( STASH_KEY, JSON.stringify( {
 						page: title, text: applyAll( wikitext, chosen ),
 						summary: editSummary( chosen.length ), count: chosen.length
@@ -235,9 +269,7 @@
 	var ns = mw.config.get( 'wgNamespaceNumber' );
 
 	if ( action === 'edit' || action === 'submit' ) {
-		// returning from the read-page panel: fill the form
 		mw.hook( 'wikipage.editform' ).add( applyStashToEditor );
-		// and offer BooksUp while editing (apply straight into the edit box)
 		if ( ns === 0 ) {
 			mw.loader.using( [ 'mediawiki.util' ] ).then( function () {
 				addLink( true );
