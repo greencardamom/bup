@@ -1,0 +1,182 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ view_title }}{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='bup-ui.js') }}"></script>
+{% endblock %}
+
+{# Shared worklist table, used by Top / Random / Search (and the step-4 views).
+   `wiki` is passed explicitly because Jinja macros don't see template context. #}
+{% macro worklist_table(rows, wiki) %}
+<table class="bu-table">
+  <thead>
+    <tr>
+      <th>Article</th>
+      <th class="num">Books</th>
+      <th class="num">Journals</th>
+      <th class="num">Refactor</th>
+      <th class="num">Total</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><a href="https://en.wikipedia.org/wiki/{{ r.page }}" target="_blank" rel="noopener noreferrer">{{ r.page }}</a></td>
+      <td class="num">{{ r.book_count }}</td>
+      <td class="num">{{ r.sim_count }}</td>
+      <td class="num">{{ r.ref_count }}</td>
+      <td class="num">{{ r.count }}</td>
+      <td>
+        {# bup-ui.js expands the proposed change in-row (Add/Skip + Confirm). #}
+        <button type="button" class="bu-btn bu-btn-primary bu-run"
+                data-id="{{ r.id }}" data-wiki="{{ wiki }}">Run</button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{% block content %}
+
+{% if not has_data %}
+  {# A wiki the matcher hasn't produced data for yet (everything but enwiki). #}
+  <div class="bu-notice bu-empty">
+    No BooksUp data for <strong>{{ wiki_label }}</strong> yet — only the English
+    Wikipedia is populated at this time. Pick a different wiki above.
+  </div>
+
+{% elif view == 'top' %}
+  <p class="bu-summary">
+    <strong>{{ "{:,}".format(stats.pages) }}</strong> articles ·
+    <strong>{{ "{:,}".format(stats.citations) }}</strong> links available
+    ({{ "{:,}".format(stats.book) }} book / {{ "{:,}".format(stats.sim) }} journal /
+    {{ "{:,}".format(stats.ref) }} refactor)
+  </p>
+  <p class="bu-formnote">See also
+    <a href="https://en.wikipedia.org/wiki/User:GreenC/BooksUp" target="_blank" rel="noopener noreferrer">BooksUp</a>,
+    a wiki-side gadget for linking books while you edit the page.</p>
+
+  {{ worklist_table(rows, wiki) }}
+
+  {% if total_pages > 1 %}
+  <div class="bu-pager">
+    {% if page > 1 %}
+      <a href="{{ url_for('main', view='top', wiki=wiki, page=page-1) }}">‹ Prev</a>
+    {% else %}
+      <span class="bu-pager-disabled">‹ Prev</span>
+    {% endif %}
+    <span>Page {{ "{:,}".format(page) }} of {{ "{:,}".format(total_pages) }}</span>
+    {% if page < total_pages %}
+      <a href="{{ url_for('main', view='top', wiki=wiki, page=page+1) }}">Next ›</a>
+    {% else %}
+      <span class="bu-pager-disabled">Next ›</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+{% elif view == 'random' %}
+  <p class="bu-summary">
+    A random set of {{ rows|length }} article{{ '' if rows|length == 1 else 's' }}
+    with available links.
+    <a class="bu-btn" href="{{ url_for('main', view='random', wiki=wiki) }}">Shuffle ↻</a>
+  </p>
+  {% if rows %}
+    {{ worklist_table(rows, wiki) }}
+  {% else %}
+    <div class="bu-notice bu-empty">No articles available.</div>
+  {% endif %}
+
+{% elif view == 'search' %}
+  <form class="bu-viewform" method="get" action="{{ url_for('main') }}">
+    <input type="hidden" name="view" value="search">
+    <input type="hidden" name="wiki" value="{{ wiki }}">
+    <label for="bu-q">Article title contains:</label>
+    <input id="bu-q" type="text" name="q" value="{{ q or '' }}" placeholder="e.g. history of" autofocus>
+    <label for="bu-type">Type:</label>
+    <select id="bu-type" name="type">
+      <option value=""{{ ' selected' if not ctype else '' }}>All</option>
+      <option value="book"{{ ' selected' if ctype == 'book' else '' }}>Books</option>
+      <option value="sim"{{ ' selected' if ctype == 'sim' else '' }}>Journals</option>
+      <option value="ref"{{ ' selected' if ctype == 'ref' else '' }}>Refactor</option>
+    </select>
+    <input class="bu-btn bu-btn-primary" type="submit" value="Search">
+  </form>
+
+  {% if q %}
+    {% if rows %}
+      <p class="bu-summary">{{ rows|length }} match{{ '' if rows|length == 1 else 'es' }}
+      for “{{ q }}”{% if rows|length == search_limit %} (showing first {{ search_limit }}){% endif %}.</p>
+      {{ worklist_table(rows, wiki) }}
+    {% else %}
+      <div class="bu-notice bu-empty">No worklist articles match “{{ q }}”.</div>
+    {% endif %}
+  {% else %}
+    <div class="bu-notice bu-empty">Enter part of an article title to search the worklist.</div>
+  {% endif %}
+
+{% elif view == 'watchlist' %}
+  {% if rows %}
+    <p class="bu-summary">{{ rows|length }} of your
+      {{ "{:,}".format(scanned) }} watchlisted article{{ 's' if scanned != 1 else '' }}
+      have suggestions.</p>
+    {{ worklist_table(rows, wiki) }}
+  {% else %}
+    <div class="bu-notice bu-empty">None of your watchlisted articles have
+      suggestions right now (or your watchlist is empty).</div>
+  {% endif %}
+
+{% elif view == 'category' %}
+  <form class="bu-viewform" method="get" action="{{ url_for('main') }}">
+    <input type="hidden" name="view" value="category">
+    <input type="hidden" name="wiki" value="{{ wiki }}">
+    <label for="bu-name">Category:</label>
+    <input id="bu-name" type="text" name="name" value="{{ name or '' }}" placeholder="e.g. 1980s films" autofocus>
+    <input class="bu-btn bu-btn-primary" type="submit" value="Find">
+  </form>
+  {% if name %}
+    {% if rows %}
+      <p class="bu-summary">{{ rows|length }} of {{ "{:,}".format(scanned) }}
+        article{{ 's' if scanned != 1 else '' }} in “{{ name }}” have suggestions.</p>
+      {{ worklist_table(rows, wiki) }}
+    {% else %}
+      <div class="bu-notice bu-empty">No worklist suggestions among the
+        {{ "{:,}".format(scanned) }} article{{ 's' if scanned != 1 else '' }}
+        in “{{ name }}”{% if scanned == 0 %} (category empty or not found){% endif %}.</div>
+    {% endif %}
+  {% else %}
+    <div class="bu-notice bu-empty">Enter a category to find its articles that
+      have suggestions.</div>
+  {% endif %}
+
+{% elif view == 'backlinks' %}
+  <form class="bu-viewform" method="get" action="{{ url_for('main') }}">
+    <input type="hidden" name="view" value="backlinks">
+    <input type="hidden" name="wiki" value="{{ wiki }}">
+    <label for="bu-name">Pages that link to:</label>
+    <input id="bu-name" type="text" name="name" value="{{ name or '' }}" placeholder="e.g. Internet Archive" autofocus>
+    <input class="bu-btn bu-btn-primary" type="submit" value="Find">
+  </form>
+  {% if name %}
+    {% if rows %}
+      <p class="bu-summary">{{ rows|length }} of {{ "{:,}".format(scanned) }}
+        page{{ 's' if scanned != 1 else '' }} linking to “{{ name }}” have suggestions.</p>
+      {{ worklist_table(rows, wiki) }}
+    {% else %}
+      <div class="bu-notice bu-empty">No worklist suggestions among the
+        {{ "{:,}".format(scanned) }} page{{ 's' if scanned != 1 else '' }}
+        linking to “{{ name }}”{% if scanned == 0 %} (none found){% endif %}.</div>
+    {% endif %}
+  {% else %}
+    <div class="bu-notice bu-empty">Enter an article to find the pages that link
+      to it (“what links here”) that have suggestions.</div>
+  {% endif %}
+
+{% else %}
+  <div class="bu-notice bu-empty">Unknown view. Go to
+    <a href="{{ url_for('main', view='top', wiki=wiki) }}">Top articles</a>.</div>
+{% endif %}
+
+{% endblock %}

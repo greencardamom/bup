@@ -51,21 +51,45 @@ review and apply them, and serves them over an API.
 
 | File | Role |
 |------|------|
-| `python/src/app.py` | Flask app: routes, OAuth login, preview/run-bot, edits |
+| `python/src/app.py` | Flask app: routes, OAuth login, views, inline preview/apply (SSE), dashboard, edits |
 | `python/src/api.py` | Read-only JSON API blueprint (`/api/v1`) |
 | `python/src/db.py` | SQLite data layer (the `pages` worklist) |
+| `python/src/wikis.py` | Wiki registry (multi-wiki-ready; only enwiki populated) |
 | `python/src/bookbot.py` | Core citation logic (literal match, preview, apply) |
-| `python/src/wiki.py` | MediaWiki API reads (single signed read + batch reader) |
+| `python/src/wiki.py` | MediaWiki API: signed reads, batch readers, list queries (watchlist/category/backlinks), escalating backoff |
 | `python/src/reconcile.py` | Prune resolved citations + write audit logs |
 | `python/src/verify.py` | Daily reconciler job (batched live-article re-check) |
 | `python/src/auditlog.py` | Append-only flat logs (`removed.log`, `edits.log`) |
 | `python/src/migrate.py` | Import `out.json` → `bup.db` |
-| `python/src/templates/`, `static/` | Jinja2 UI templates and assets |
+| `python/src/templates/`, `static/` | Jinja2 templates + hand-rolled Vector-style CSS/JS (`bup-ui.css`, `bup-ui.js`) |
 | `python/src/stats.py` | Daily usage-stats job (see `stats/README.md`) |
 | `gadget/BooksUp.js` | On-wiki BooksUp user script (a client of the API) |
 
 **Stack:** Python 3.11, Flask 3.x, SQLite, Jinja2, mwoauth — on a Toolforge
 Kubernetes webservice.
+
+## Web interface
+
+The tool at [bup.toolforge.org](https://bup.toolforge.org) is a
+Wikipedia/Vector-styled Flask UI (hand-rolled CSS, no frontend build). After an
+OAuth login, a left sidebar offers:
+
+- **Views** — ways to find articles with suggestions:
+  - **Top** — the whole worklist, most-available-links first, paginated.
+  - **Random** — a random set.
+  - **Watchlist / Category / Backlinks** — the worklist intersected with your
+    watchlist, a category's members, or an article's "what links here".
+  - **Search** — title search + citation-type filter (books / journals / refactors).
+- **Tools → Dashboard** — "work remaining" corpus totals (everyone), plus, for
+  users listed in `db/stats_users.txt` (newline-separated, `User:Name` or
+  `Name`; `GreenC` is always allowed), a "links added via the tool" panel with
+  year-scoped totals, API call counts, and a switchable per-month bar chart.
+
+Each row's single **Run** action expands the proposed change inline (Add/Skip
+per citation) and applies the accepted ones in place, **streaming live retry
+progress** if the wiki API is busy. Edits are attributed to the logged-in user.
+A header **wiki selector** is threaded through the read/edit paths for future
+multi-language support; only the English Wikipedia worklist is populated today.
 
 ## API
 

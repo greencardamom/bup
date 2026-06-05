@@ -112,6 +112,39 @@ def worklist_page(conn, limit=50, offset=0, min_count=0, ctype=None):
     return [dict(r) for r in conn.execute(sql, args).fetchall()]
 
 
+def worklist_total(conn, min_count=0, ctype=None):
+    """Total worklist rows matching the same filters as worklist_page, for the
+    UI pager ('Page X of Y'). Mirrors worklist_page's WHERE clause."""
+    where, args = ["count >= ?"], [int(min_count)]
+    if ctype == "book":
+        where.append("book_count > 0")
+    elif ctype == "sim":
+        where.append("sim_count > 0")
+    elif ctype == "ref":
+        where.append("ref_count > 0")
+    sql = "SELECT COUNT(*) AS n FROM pages WHERE %s" % " AND ".join(where)
+    return conn.execute(sql, args).fetchone()["n"]
+
+
+def search_titles(conn, q, ctype=None, limit=50):
+    """Case-insensitive title substring search + optional citation-type filter,
+    ordered by count desc (most-impactful first). For the Search view. `%`/`_`
+    in the query are escaped so they match literally rather than as wildcards.
+    Substring LIKE is a full scan, fine for an occasional interactive search."""
+    like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    where, args = ["page LIKE ? ESCAPE '\\'"], [like]
+    if ctype == "book":
+        where.append("book_count > 0")
+    elif ctype == "sim":
+        where.append("sim_count > 0")
+    elif ctype == "ref":
+        where.append("ref_count > 0")
+    sql = ("SELECT id, page, count, book_count, sim_count, ref_count FROM pages "
+           "WHERE %s ORDER BY count DESC, id LIMIT ?" % " AND ".join(where))
+    args.append(int(limit))
+    return [dict(r) for r in conn.execute(sql, args).fetchall()]
+
+
 def get_page(conn, page_id):
     """Fetch one worklist row by stable id, with citations parsed."""
     cur = conn.execute(
@@ -162,7 +195,7 @@ def pages_present(conn, titles):
         chunk = titles[i:i + CHUNK]
         ph = ",".join("?" * len(chunk))
         cur = conn.execute(
-            "SELECT page, count, book_count, sim_count, ref_count FROM pages "
+            "SELECT id, page, count, book_count, sim_count, ref_count FROM pages "
             "WHERE page IN (%s)" % ph, chunk)
         for r in cur.fetchall():
             if r["page"] not in seen:

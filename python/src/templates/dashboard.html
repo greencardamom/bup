@@ -1,0 +1,94 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+{# --- Work remaining: shown to everyone -------------------------------- #}
+<h2 class="bu-dash-h">Work remaining</h2>
+{% if corpus %}
+<div class="bu-cards">
+  <div class="bu-card"><div class="bu-card-n">{{ "{:,}".format(corpus.pages) }}</div><div class="bu-card-l">open articles</div></div>
+  <div class="bu-card"><div class="bu-card-n">{{ "{:,}".format(corpus.citations) }}</div><div class="bu-card-l">links available</div></div>
+  <div class="bu-card"><div class="bu-card-n">{{ "{:,}".format(corpus.book) }}</div><div class="bu-card-l">book</div></div>
+  <div class="bu-card"><div class="bu-card-n">{{ "{:,}".format(corpus.sim) }}</div><div class="bu-card-l">journal</div></div>
+  <div class="bu-card"><div class="bu-card-n">{{ "{:,}".format(corpus.ref) }}</div><div class="bu-card-l">refactor</div></div>
+</div>
+{% else %}
+<div class="bu-notice bu-empty">No worklist for {{ wiki_label }} yet.</div>
+{% endif %}
+
+{# --- Links added: only for users in stats_users() --------------------- #}
+{% if can_view_stats %}
+<h2 class="bu-dash-h">Links added via the tool</h2>
+{% if years %}
+  <form class="bu-viewform bu-dash-controls" method="get" action="{{ url_for('dashboard') }}">
+    <input type="hidden" name="wiki" value="{{ wiki }}">
+    <input type="hidden" name="month" value="{{ month or '' }}">
+    <label for="bu-year">Year:</label>
+    <select id="bu-year" name="year" onchange="this.form.submit()">
+      <option value="all"{{ ' selected' if year == 'all' else '' }}>All years</option>
+      {% for y in years|reverse %}
+      <option value="{{ y }}"{{ ' selected' if year == y else '' }}>{{ y }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <p class="bu-summary">{{ 'All years' if year == 'all' else year }} —
+    {{ "{:,}".format(days) }} day{{ 's' if days != 1 else '' }} with data.</p>
+  <div class="bu-cards">
+    <div class="bu-card"><div class="bu-card-n">{{ "{:,}".format(total_added) }}</div><div class="bu-card-l">links added</div></div>
+    <div class="bu-card"><div class="bu-card-n">{{ "{:,}".format(total_webtool) }}</div><div class="bu-card-l">via web tool</div></div>
+    <div class="bu-card"><div class="bu-card-n">{{ "{:,}".format(total_gadget) }}</div><div class="bu-card-l">via gadget</div></div>
+  </div>
+
+  <h3 class="bu-dash-h3">Daily links added</h3>
+  <div class="bu-monthnav">
+    {% if prev_month %}
+      <a class="bu-btn" href="{{ url_for('dashboard', wiki=wiki, year=year, month=prev_month) }}">‹ {{ prev_month }}</a>
+    {% else %}
+      <span class="bu-pager-disabled">‹</span>
+    {% endif %}
+    <strong>{{ month or '—' }}</strong>
+    {% if next_month %}
+      <a class="bu-btn" href="{{ url_for('dashboard', wiki=wiki, year=year, month=next_month) }}">{{ next_month }} ›</a>
+    {% else %}
+      <span class="bu-pager-disabled">›</span>
+    {% endif %}
+  </div>
+  {% if recent %}
+  <div class="bu-bars">
+    {% for r in recent %}
+    {% set v = r.urls_added or 0 %}
+    <div class="bu-bar-row">
+      <span class="bu-bar-date">{{ r.date }}</span>
+      <span class="bu-bar-track">
+        <span class="bu-bar-fill" style="width: {{ (100 * v / max_added)|round(1) if max_added else 0 }}%"></span>
+      </span>
+      <span class="bu-bar-val">{{ "{:,}".format(v) }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="bu-notice bu-empty">No data for {{ month }}.</div>
+  {% endif %}
+
+  {% if api_totals %}
+  <h3 class="bu-dash-h3">API calls ({{ 'all years' if year == 'all' else year }})</h3>
+  <table class="bu-table bu-dash-api">
+    <thead><tr><th>Endpoint</th><th class="num">Calls</th></tr></thead>
+    <tbody>
+      {% for k, v in api_totals|dictsort %}
+      <tr><td>{{ k }}</td><td class="num">{{ "{:,}".format(v) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+{% else %}
+  <div class="bu-notice bu-empty">No usage statistics recorded yet.</div>
+{% endif %}
+<p class="bu-formnote">Daily statistics are published as JSON Lines at
+  <a href="https://tools-static.wmflabs.org/bup/" target="_blank" rel="noopener noreferrer">tools-static.wmflabs.org/bup</a>.</p>
+{% endif %}
+
+{% endblock %}

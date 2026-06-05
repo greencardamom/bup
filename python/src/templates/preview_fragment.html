@@ -1,0 +1,36 @@
+{# In-row expand for the Top view. Rendered without a layout and injected by
+   bup-ui.js. `rows` = [{i, oldcite, newcite_html}]; available = how many remain.
+   Mirrors the BooksUp gadget: each change has Add (default) / Skip; the list
+   scrolls within the panel; Confirm & save applies only the non-skipped ones. #}
+{% if available == 0 %}
+  <div class="bu-preview">
+    <p class="bu-empty">No proposed changes remain for this article — it has
+    been removed from the worklist. Reload to refresh.</p>
+  </div>
+{% else %}
+  <div class="bu-preview" data-id="{{ page_id }}">
+    <p class="bu-preview-head">
+      {{ available }} proposed change{{ '' if available == 1 else 's' }} for
+      <a href="https://en.wikipedia.org/wiki/{{ page }}" target="_blank" rel="noopener noreferrer">{{ page }}</a>
+    </p>
+    <ul class="bu-cite-list">
+      {% for r in rows %}
+      <li class="bu-cite" data-i="{{ r.i }}">
+        <div class="bu-toggle">
+          <button type="button" class="bu-tbtn bu-add bu-on">Add</button>
+          <button type="button" class="bu-tbtn bu-skip">Skip</button>
+        </div>
+        <div class="bu-cite-label">Before</div>
+        <div class="bu-cite-before">{{ r.oldcite }}</div>
+        <div class="bu-cite-label">After</div>
+        <div class="bu-cite-after">{{ r.newcite_html|safe }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="bu-confirmbar">
+      <button type="button" class="bu-btn bu-btn-primary bu-confirm" data-id="{{ page_id }}">Confirm &amp; save</button>
+      <button type="button" class="bu-btn bu-cancel">Cancel</button>
+      <span class="bu-confirm-status" role="status" aria-live="polite"></span>
+    </div>
+  </div>
+{% endif %}
