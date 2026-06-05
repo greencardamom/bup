@@ -1,7 +1,12 @@
 /**
  * BooksUp — surface book and journal links for the current article (from the
- * bup tool's API) and apply them in the edit window so the editor can
- * review/modify before saving.
+ * bup tool's API) and apply them so the editor can review/modify before saving.
+ *
+ * Works two ways:
+ *   - Reading an article: click BooksUp -> pick suggestions -> opens the edit
+ *     window with the changes applied.
+ *   - Already editing wikitext: click BooksUp -> pick suggestions -> applies
+ *     them straight into the edit box you're in (combine with other edits).
  *
  * Install: copy to User:GreenC/BooksUp.js, then in User:GreenC/common.js add:
  *   mw.loader.load('//en.wikipedia.org/w/index.php?title=User:GreenC/BooksUp.js&action=raw&ctype=text/javascript');
@@ -59,6 +64,14 @@
 		return wikitext;
 	}
 
+	function setSummary( text ) {
+		var $sum = $( '#wpSummary, #wpSummaryWidget input' );
+		if ( !$sum.length ) { return; }
+		var cur = $sum.val() || '';
+		if ( cur.indexOf( 'BooksUp' ) !== -1 ) { return; }   // don't double-add
+		$sum.val( cur ? cur + '; ' + text : text );
+	}
+
 	// ---- edit-page side: drop a stashed change into the edit form ---------
 
 	function applyStashToEditor() {
@@ -73,9 +86,7 @@
 		var $text = $( '#wpTextbox1' );
 		if ( !$text.length ) { return; }
 		$text.val( data.text ).trigger( 'change' ).trigger( 'input' );
-
-		var $sum = $( '#wpSummary, #wpSummaryWidget input' );
-		if ( $sum.length && !$sum.val() ) { $sum.val( data.summary ); }
+		setSummary( data.summary );
 
 		mw.notify(
 			'Applied ' + data.count + ' change' + ( data.count === 1 ? '' : 's' ) +
@@ -84,7 +95,7 @@
 		);
 	}
 
-	// ---- read-page side: the suggestions panel ----------------------------
+	// ---- the suggestions panel --------------------------------------------
 
 	function injectStyle() {
 		if ( document.getElementById( 'booksup-style' ) ) { return; }
@@ -110,7 +121,7 @@
 		$( '#booksup-panel' ).remove();
 	}
 
-	function showPanel( title, wikitext, cites ) {
+	function showPanel( title, wikitext, cites, inEdit ) {
 		injectStyle();
 		closePanel();
 
@@ -131,8 +142,9 @@
 				.appendTo( $label );
 			$label.appendTo( $li );
 
-			var $det = $( '<details>' ).appendTo( $li );
-			$( '<summary>' ).text( 'show citation' ).appendTo( $det );
+			// expanded by default
+			var $det = $( '<details open>' ).appendTo( $li );
+			$( '<summary>' ).text( 'citation' ).appendTo( $det );
 			$( '<pre class="old">' ).text( c.oldcite ).appendTo( $det );
 			$( '<pre class="new">' ).text( c.newcite ).appendTo( $det );
 			$li.appendTo( $ul );
@@ -141,36 +153,54 @@
 		var $foot = $( '<div class="booksup-foot">' ).appendTo( $panel );
 		$( '<button class="mw-ui-button">' ).text( 'Close' )
 			.on( 'click', closePanel ).appendTo( $foot );
-		$( '<button class="mw-ui-button mw-ui-progressive">' ).text( 'Open in editor' )
+		$( '<button class="mw-ui-button mw-ui-progressive">' )
+			.text( inEdit ? 'Apply to editor' : 'Open in editor' )
 			.on( 'click', function () {
 				var chosen = [];
 				$panel.find( 'input:checked' ).each( function () {
 					chosen.push( cites[ $( this ).attr( 'data-i' ) ] );
 				} );
 				if ( !chosen.length ) {
-					mw.notify( 'BooksUp: nothing selected.', { title: 'BooksUp' } );
+					mw.notify( 'Nothing selected.', { title: 'BooksUp' } );
 					return;
 				}
-				var newtext = applyAll( wikitext, chosen );
-				sessionStorage.setItem( STASH_KEY, JSON.stringify( {
-					page: title, text: newtext,
-					summary: editSummary( chosen.length ), count: chosen.length
-				} ) );
-				window.location.href = mw.util.getUrl( title, { action: 'edit' } );
+				if ( inEdit ) {
+					// apply straight into the edit box you're in
+					var $t = $( '#wpTextbox1' );
+					$t.val( applyAll( $t.val() || '', chosen ) )
+						.trigger( 'change' ).trigger( 'input' );
+					setSummary( editSummary( chosen.length ) );
+					closePanel();
+					mw.notify( 'Applied ' + chosen.length + ' change' +
+						( chosen.length === 1 ? '' : 's' ) +
+						' to the editor. Review and save.', { title: 'BooksUp' } );
+				} else {
+					// stash and open the edit window
+					sessionStorage.setItem( STASH_KEY, JSON.stringify( {
+						page: title, text: applyAll( wikitext, chosen ),
+						summary: editSummary( chosen.length ), count: chosen.length
+					} ) );
+					window.location.href = mw.util.getUrl( title, { action: 'edit' } );
+				}
 			} ).appendTo( $foot );
 
 		$( document.body ).append( $panel );
 	}
 
-	function run() {
+	function run( inEdit ) {
 		var title = mw.config.get( 'wgPageName' );
 		mw.notify( 'Checking…', { title: 'BooksUp', tag: 'booksup' } );
 
-		Promise.all( [ fetchCandidates( title ), fetchWikitext( title ) ] )
+		// In edit mode the live source is the edit box (may have unsaved edits);
+		// when reading, fetch the current saved wikitext from the API.
+		var wikitextP = inEdit ?
+			Promise.resolve( $( '#wpTextbox1' ).val() || '' ) :
+			fetchWikitext( title );
+
+		Promise.all( [ fetchCandidates( title ), wikitextP ] )
 			.then( function ( res ) {
 				var cites = ( res[ 0 ] && res[ 0 ].citations ) || [];
 				var wikitext = res[ 1 ] || '';
-				// keep only candidates whose oldcite is literally present now
 				var applicable = cites.filter( function ( c ) {
 					return c.oldcite && wikitext.indexOf( c.oldcite ) !== -1;
 				} );
@@ -179,35 +209,46 @@
 						{ title: 'BooksUp', tag: 'booksup' } );
 					return;
 				}
-				showPanel( title, wikitext, applicable );
+				showPanel( title, wikitext, applicable, inEdit );
 			} )
 			.catch( function ( err ) {
-				mw.notify( 'Error: ' + err.message, { title: 'BooksUp', type: 'error', tag: 'booksup' } );
+				mw.notify( 'Error: ' + err.message,
+					{ title: 'BooksUp', type: 'error', tag: 'booksup' } );
 			} );
+	}
+
+	function addLink( inEdit ) {
+		var link = mw.util.addPortletLink(
+			'p-tb', '#', 'BooksUp', 't-booksup', 'Find book links for this article'
+		);
+		if ( link ) {
+			$( link ).on( 'click', function ( e ) {
+				e.preventDefault();
+				run( inEdit );
+			} );
+		}
 	}
 
 	// ---- init -------------------------------------------------------------
 
 	var action = mw.config.get( 'wgAction' );
+	var ns = mw.config.get( 'wgNamespaceNumber' );
 
 	if ( action === 'edit' || action === 'submit' ) {
-		// Coming back from the panel: fill the edit form once it's ready.
+		// returning from the read-page panel: fill the form
 		mw.hook( 'wikipage.editform' ).add( applyStashToEditor );
+		// and offer BooksUp while editing (apply straight into the edit box)
+		if ( ns === 0 ) {
+			mw.loader.using( [ 'mediawiki.util' ] ).then( function () {
+				addLink( true );
+			} );
+		}
 		return;
 	}
 
-	if ( mw.config.get( 'wgNamespaceNumber' ) === 0 && action === 'view' ) {
+	if ( ns === 0 && action === 'view' ) {
 		mw.loader.using( [ 'mediawiki.util', 'mediawiki.api' ] ).then( function () {
-			var link = mw.util.addPortletLink(
-				'p-tb', '#', 'BooksUp', 't-booksup',
-				'Find book links for this article'
-			);
-			if ( link ) {
-				$( link ).on( 'click', function ( e ) {
-					e.preventDefault();
-					run();
-				} );
-			}
+			addLink( false );
 		} );
 	}
 }() );
