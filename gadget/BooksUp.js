@@ -8,6 +8,12 @@
  *   - Already editing wikitext: click BooksUp -> pick suggestions -> applies
  *     them straight into the edit box you're in (combine with other edits).
  *
+ * The panel also has a "Find articles" section (most articles have no
+ * suggestions), to find pages worth running it on:
+ *   - Random: jump to a random article that has book links.
+ *   - My watchlist: list your watchlisted articles that have book links.
+ *   - Browse worklist: the full list at bup.toolforge.org.
+ *
  * Install: copy to User:GreenC/BooksUp.js, then in User:GreenC/common.js add:
  *   mw.loader.load('//en.wikipedia.org/w/index.php?title=User:GreenC/BooksUp.js&action=raw&ctype=text/javascript');
  *
@@ -18,18 +24,19 @@
 	'use strict';
 
 	// ---- config -----------------------------------------------------------
-	var API = 'https://bup.toolforge.org/api/v1';   // bup read-only API
+	var API = 'https://bup.toolforge.org/api/v1';
+	var WEB = 'https://bup.toolforge.org';           // browsable worklist UI
 	var DOC = 'User:GreenC/BooksUp';                 // linked in the edit summary
 	var STASH_KEY = 'BooksUp.pending';               // read-page -> edit-page handoff
+	var AUTORUN_KEY = 'BooksUp.autorun';             // auto-open on arrival (localStorage)
 
 	function editSummary( n ) {
 		return 'Adding book link' + ( n === 1 ? '' : 's' ) +
 			' ([[' + DOC + '|BooksUp]])';
 	}
 
-	// ---- helpers ----------------------------------------------------------
+	// ---- API / wiki access ------------------------------------------------
 
-	// Build /page/<title>, keeping "/" as path separators (route is <path:title>).
 	function apiPageUrl( title ) {
 		return API + '/page/' + encodeURIComponent( title ).replace( /%2F/gi, '/' );
 	}
@@ -56,7 +63,59 @@
 		} );
 	}
 
-	// Literal replace of every occurrence (matches how bup applies edits).
+	function getRandom() {
+		return fetch( API + '/random?limit=1', { headers: { Accept: 'application/json' } } )
+			.then( function ( r ) { return r.json(); } )
+			.then( function ( j ) {
+				return ( j.pages && j.pages[ 0 ] ) ? j.pages[ 0 ].title : null;
+			} );
+	}
+
+	// Full mainspace watchlist (titles only), paged.
+	function fetchWatchlist() {
+		var api = new mw.Api();
+		var titles = [];
+		function page( cont ) {
+			var params = {
+				action: 'query', list: 'watchlistraw', wrnamespace: 0,
+				wrlimit: 'max', format: 'json', formatversion: 2
+			};
+			if ( cont ) { $.extend( params, cont ); }
+			return api.get( params ).then( function ( d ) {
+				( d.watchlistraw || [] ).forEach( function ( w ) {
+					titles.push( w.title );
+				} );
+				if ( d.continue ) { return page( d.continue ); }
+				return titles;
+			} );
+		}
+		return page( null );
+	}
+
+	// Which of `titles` are in the worklist (chunked POST /pages, text/plain).
+	function intersect( titles ) {
+		var CHUNK = 500, chunks = [], i;
+		for ( i = 0; i < titles.length; i += CHUNK ) {
+			chunks.push( titles.slice( i, i + CHUNK ) );
+		}
+		var found = [];
+		return chunks.reduce( function ( p, chunk ) {
+			return p.then( function () {
+				return fetch( API + '/pages', {
+					method: 'POST',
+					headers: { 'Content-Type': 'text/plain' },   // safelisted -> no preflight
+					body: chunk.join( '\n' )
+				} ).then( function ( r ) {
+					return r.ok ? r.json() : { pages: [] };
+				} ).then( function ( j ) {
+					found = found.concat( j.pages || [] );
+				} );
+			} );
+		}, Promise.resolve() ).then( function () { return found; } );
+	}
+
+	// ---- editing helpers --------------------------------------------------
+
 	function applyAll( wikitext, cites ) {
 		cites.forEach( function ( c ) {
 			wikitext = wikitext.split( c.oldcite ).join( c.newcite );
@@ -68,7 +127,7 @@
 		var $sum = $( '#wpSummary, #wpSummaryWidget input' );
 		if ( !$sum.length ) { return; }
 		var cur = $sum.val() || '';
-		if ( cur.indexOf( 'BooksUp' ) !== -1 ) { return; }   // don't double-add
+		if ( cur.indexOf( 'BooksUp' ) !== -1 ) { return; }
 		$sum.val( cur ? cur + '; ' + text : text );
 	}
 
@@ -76,8 +135,6 @@
 		return $( '<div>' ).text( s == null ? '' : s ).html();
 	}
 
-	// Render newcite as escaped HTML with its archive.org URL as a clickable
-	// blue link that opens in a new tab (so the editor can verify the target).
 	function renderNewcite( newcite, url ) {
 		var html = esc( newcite );
 		if ( url ) {
@@ -88,6 +145,17 @@
 			}
 		}
 		return html;
+	}
+
+	// Navigate to a discovered article and auto-open the panel there.
+	function goToArticle( title, inEdit ) {
+		try {
+			localStorage.setItem( AUTORUN_KEY,
+				JSON.stringify( { page: title, ts: Date.now() } ) );
+		} catch ( e ) {}
+		var url = mw.util.getUrl( title );
+		if ( inEdit ) { window.open( url, '_blank' ); }   // don't lose the open edit
+		else { window.location.href = url; }
 	}
 
 	// ---- edit-page side: drop a stashed change into the edit form ---------
@@ -113,7 +181,7 @@
 		);
 	}
 
-	// ---- the suggestions panel --------------------------------------------
+	// ---- panel ------------------------------------------------------------
 
 	function injectStyle() {
 		if ( document.getElementById( 'booksup-style' ) ) { return; }
@@ -126,9 +194,12 @@
 				'justify-content:space-between;cursor:move;user-select:none}' +
 			'#booksup-panel h3 .bu-x{cursor:pointer;font-size:20px;line-height:1;padding:0 2px}' +
 			'#booksup-panel h3 .bu-x:hover{color:#cfe2ff}' +
-			'#booksup-panel .booksup-body{padding:8px 12px}' +
+			'#booksup-panel .bu-section{padding:8px 12px;border-bottom:1px solid #eaecf0}' +
+			'#booksup-panel .bu-h{font-weight:bold;margin:0 0 6px;color:#202122}' +
+			'#booksup-panel .bu-none{color:#54595d;font-style:italic}' +
 			'#booksup-panel ul{list-style:none;margin:0;padding:0}' +
 			'#booksup-panel li{padding:8px 0;border-bottom:1px solid #eaecf0}' +
+			'#booksup-panel li:last-child{border-bottom:0}' +
 			'#booksup-panel li.bu-skipped{opacity:.45}' +
 			'#booksup-panel .bu-lbl{font-weight:bold;font-size:11px;color:#54595d;margin:4px 0 2px}' +
 			'#booksup-panel pre{white-space:pre-wrap;word-break:break-word;background:#f8f9fa;' +
@@ -140,6 +211,9 @@
 				'background:#f8f9fa;color:#202122;cursor:pointer;border-radius:2px;font-size:12px}' +
 			'#booksup-panel .bu-add.bu-on{background:#36c;border-color:#36c;color:#fff}' +
 			'#booksup-panel .bu-skip.bu-on{background:#d33;border-color:#d33;color:#fff}' +
+			'#booksup-panel .bu-actions button,#booksup-panel .bu-actions a{margin-right:8px}' +
+			'#booksup-panel .bu-results{margin-top:6px}' +
+			'#booksup-panel .bu-results li{padding:3px 0;border:0}' +
 			'#booksup-panel .booksup-foot{position:sticky;bottom:0;background:#fff;' +
 				'padding:8px 12px;border-top:1px solid #eaecf0;text-align:right}' +
 			'#booksup-panel .booksup-foot button{margin-left:6px}'
@@ -151,12 +225,10 @@
 		$( '#booksup-panel' ).remove();
 	}
 
-	// Drag the panel by its header (the blue band). Switches the panel from its
-	// right-anchored default to left/top on first drag.
 	function makeDraggable( $panel, $handle ) {
 		var sx, sy, startLeft, startTop;
 		$handle.on( 'mousedown', function ( e ) {
-			if ( $( e.target ).closest( '.bu-x' ).length ) { return; }  // not the close X
+			if ( $( e.target ).closest( '.bu-x' ).length ) { return; }
 			var rect = $panel[ 0 ].getBoundingClientRect();
 			$panel.css( { left: rect.left + 'px', top: rect.top + 'px', right: 'auto' } );
 			sx = e.clientX; sy = e.clientY; startLeft = rect.left; startTop = rect.top;
@@ -175,23 +247,20 @@
 		}
 	}
 
-	function showPanel( title, wikitext, cites, inEdit ) {
-		injectStyle();
-		closePanel();
+	function renderArticleSection( $section, cites ) {
+		$( '<div class="bu-h">' ).text( 'This article — ' + ( cites.length
+			? cites.length + ' suggestion' + ( cites.length === 1 ? '' : 's' )
+			: 'no suggestions' ) ).appendTo( $section );
 
-		var $panel = $( '<div id="booksup-panel">' );
-		var $h3 = $( '<h3>' ).appendTo( $panel );
-		$( '<span>' ).text( 'BooksUp — ' + cites.length + ' suggestion' +
-			( cites.length === 1 ? '' : 's' ) ).appendTo( $h3 );
-		$( '<span class="bu-x" title="Close">' ).text( '×' )
-			.on( 'click', closePanel ).appendTo( $h3 );
+		if ( !cites.length ) {
+			$( '<div class="bu-none">' )
+				.text( 'No book suggestions for this article.' ).appendTo( $section );
+			return;
+		}
 
-		var $body = $( '<div class="booksup-body">' ).appendTo( $panel );
-		var $ul = $( '<ul>' ).appendTo( $body );
-
+		var $ul = $( '<ul>' ).appendTo( $section );
 		cites.forEach( function ( c, i ) {
-			var $li = $( '<li>' ).attr( 'data-i', i );   // default: kept (= Add)
-
+			var $li = $( '<li>' ).attr( 'data-i', i );
 			$( '<div class="bu-lbl">' ).text( 'current' ).appendTo( $li );
 			$( '<pre class="old">' ).text( c.oldcite ).appendTo( $li );
 
@@ -212,41 +281,125 @@
 				$skip.addClass( 'bu-on' ); $add.removeClass( 'bu-on' );
 			} );
 			$tog.append( $add, $skip );
-
 			$li.appendTo( $ul );
 		} );
+	}
+
+	function renderWatchlistResults( $results, found, inEdit ) {
+		$results.empty();
+		if ( !found.length ) {
+			$( '<div class="bu-none">' )
+				.text( 'None of your watchlisted articles have suggestions.' )
+				.appendTo( $results );
+			return;
+		}
+		found.sort( function ( a, b ) { return b.counts.total - a.counts.total; } );
+		$( '<div class="bu-none">' ).text( found.length +
+			' watchlisted article' + ( found.length === 1 ? '' : 's' ) +
+			' with suggestions:' ).appendTo( $results );
+		var $ul = $( '<ul>' ).appendTo( $results );
+		found.forEach( function ( p ) {
+			var $li = $( '<li>' );
+			$( '<a href="#">' ).text( p.title + ' (' + p.counts.total + ')' )
+				.on( 'click', function ( e ) {
+					e.preventDefault();
+					goToArticle( p.title, inEdit );
+				} ).appendTo( $li );
+			$li.appendTo( $ul );
+		} );
+	}
+
+	function renderDiscoverSection( $section, inEdit ) {
+		$( '<div class="bu-h">' ).text( 'Find articles' ).appendTo( $section );
+		var $actions = $( '<div class="bu-actions">' ).appendTo( $section );
+		var $results = $( '<div class="bu-results">' ).appendTo( $section );
+
+		$( '<button class="mw-ui-button">' ).text( 'Random' )
+			.on( 'click', function () {
+				mw.notify( 'Finding a random article…', { title: 'BooksUp', tag: 'booksup' } );
+				getRandom().then( function ( title ) {
+					if ( title ) { goToArticle( title, inEdit ); }
+					else { mw.notify( 'No article found.', { title: 'BooksUp' } ); }
+				} ).catch( function ( err ) {
+					mw.notify( 'Error: ' + err.message, { title: 'BooksUp', type: 'error' } );
+				} );
+			} ).appendTo( $actions );
+
+		$( '<button class="mw-ui-button">' ).text( 'My watchlist' )
+			.on( 'click', function () {
+				if ( !mw.config.get( 'wgUserName' ) ) {
+					mw.notify( 'Log in to use your watchlist.', { title: 'BooksUp' } );
+					return;
+				}
+				$results.html( '<div class="bu-none">Fetching your watchlist…</div>' );
+				fetchWatchlist().then( function ( titles ) {
+					$results.html( '<div class="bu-none">Checking ' + titles.length +
+						' watchlisted article' + ( titles.length === 1 ? '' : 's' ) + '…</div>' );
+					return intersect( titles );
+				} ).then( function ( found ) {
+					renderWatchlistResults( $results, found, inEdit );
+				} ).catch( function ( err ) {
+					$results.empty();
+					mw.notify( 'Watchlist error: ' + err.message,
+						{ title: 'BooksUp', type: 'error' } );
+				} );
+			} ).appendTo( $actions );
+
+		$( '<a class="mw-ui-button" target="_blank" rel="noopener">' )
+			.attr( 'href', WEB ).text( 'Browse worklist ↗' ).appendTo( $actions );
+	}
+
+	function showPanel( title, wikitext, cites, inEdit ) {
+		injectStyle();
+		closePanel();
+
+		var $panel = $( '<div id="booksup-panel">' );
+		var $h3 = $( '<h3>' ).appendTo( $panel );
+		$( '<span>' ).text( 'BooksUp' ).appendTo( $h3 );
+		$( '<span class="bu-x" title="Close">' ).text( '×' )
+			.on( 'click', closePanel ).appendTo( $h3 );
+
+		var $article = $( '<div class="bu-section">' ).appendTo( $panel );
+		renderArticleSection( $article, cites );
+
+		var $discover = $( '<div class="bu-section">' ).appendTo( $panel );
+		renderDiscoverSection( $discover, inEdit );
 
 		var $foot = $( '<div class="booksup-foot">' ).appendTo( $panel );
 		$( '<button class="mw-ui-button">' ).text( 'Close' )
 			.on( 'click', closePanel ).appendTo( $foot );
-		$( '<button class="mw-ui-button mw-ui-progressive">' )
-			.text( inEdit ? 'Apply to editor' : 'Open in editor' )
-			.on( 'click', function () {
-				var chosen = [];
-				$panel.find( 'li' ).not( '.bu-skipped' ).each( function () {
-					chosen.push( cites[ $( this ).attr( 'data-i' ) ] );
-				} );
-				if ( !chosen.length ) {
-					mw.notify( 'Nothing to add (all skipped).', { title: 'BooksUp' } );
-					return;
-				}
-				if ( inEdit ) {
-					var $t = $( '#wpTextbox1' );
-					$t.val( applyAll( $t.val() || '', chosen ) )
-						.trigger( 'change' ).trigger( 'input' );
-					setSummary( editSummary( chosen.length ) );
-					closePanel();
-					mw.notify( 'Applied ' + chosen.length + ' change' +
-						( chosen.length === 1 ? '' : 's' ) +
-						' to the editor. Review and save.', { title: 'BooksUp' } );
-				} else {
-					sessionStorage.setItem( STASH_KEY, JSON.stringify( {
-						page: title, text: applyAll( wikitext, chosen ),
-						summary: editSummary( chosen.length ), count: chosen.length
-					} ) );
-					window.location.href = mw.util.getUrl( title, { action: 'edit' } );
-				}
-			} ).appendTo( $foot );
+
+		if ( cites.length ) {
+			$( '<button class="mw-ui-button mw-ui-progressive">' )
+				.text( inEdit ? 'Apply to editor' : 'Open in editor' )
+				.on( 'click', function () {
+					var chosen = [];
+					$panel.find( '.bu-section li' ).not( '.bu-skipped' ).each( function () {
+						var idx = $( this ).attr( 'data-i' );
+						if ( idx !== undefined ) { chosen.push( cites[ idx ] ); }
+					} );
+					if ( !chosen.length ) {
+						mw.notify( 'Nothing to add (all skipped).', { title: 'BooksUp' } );
+						return;
+					}
+					if ( inEdit ) {
+						var $t = $( '#wpTextbox1' );
+						$t.val( applyAll( $t.val() || '', chosen ) )
+							.trigger( 'change' ).trigger( 'input' );
+						setSummary( editSummary( chosen.length ) );
+						closePanel();
+						mw.notify( 'Applied ' + chosen.length + ' change' +
+							( chosen.length === 1 ? '' : 's' ) +
+							' to the editor. Review and save.', { title: 'BooksUp' } );
+					} else {
+						sessionStorage.setItem( STASH_KEY, JSON.stringify( {
+							page: title, text: applyAll( wikitext, chosen ),
+							summary: editSummary( chosen.length ), count: chosen.length
+						} ) );
+						window.location.href = mw.util.getUrl( title, { action: 'edit' } );
+					}
+				} ).appendTo( $foot );
+		}
 
 		$( document.body ).append( $panel );
 		makeDraggable( $panel, $h3 );
@@ -256,8 +409,6 @@
 		var title = mw.config.get( 'wgPageName' );
 		mw.notify( 'Checking…', { title: 'BooksUp', tag: 'booksup' } );
 
-		// In edit mode the live source is the edit box (may have unsaved edits);
-		// when reading, fetch the current saved wikitext from the API.
 		var wikitextP = inEdit ?
 			Promise.resolve( $( '#wpTextbox1' ).val() || '' ) :
 			fetchWikitext( title );
@@ -269,17 +420,30 @@
 				var applicable = cites.filter( function ( c ) {
 					return c.oldcite && wikitext.indexOf( c.oldcite ) !== -1;
 				} );
-				if ( !applicable.length ) {
-					mw.notify( 'No applicable suggestions for this article.',
-						{ title: 'BooksUp', tag: 'booksup' } );
-					return;
-				}
 				showPanel( title, wikitext, applicable, inEdit );
 			} )
 			.catch( function ( err ) {
 				mw.notify( 'Error: ' + err.message,
 					{ title: 'BooksUp', type: 'error', tag: 'booksup' } );
 			} );
+	}
+
+	function maybeAutorun() {
+		var raw;
+		try { raw = localStorage.getItem( AUTORUN_KEY ); } catch ( e ) { return; }
+		if ( !raw ) { return; }
+		var d;
+		try { d = JSON.parse( raw ); } catch ( e ) {
+			localStorage.removeItem( AUTORUN_KEY ); return;
+		}
+		if ( !d || !d.page ) { localStorage.removeItem( AUTORUN_KEY ); return; }
+		var here = mw.config.get( 'wgPageName' ).replace( /_/g, ' ' );
+		if ( d.page.replace( /_/g, ' ' ) !== here ) { return; }   // not this page
+		if ( Date.now() - ( d.ts || 0 ) > 60000 ) {
+			localStorage.removeItem( AUTORUN_KEY ); return;       // stale
+		}
+		localStorage.removeItem( AUTORUN_KEY );
+		run( false );
 	}
 
 	function addLink( inEdit ) {
@@ -312,6 +476,7 @@
 	if ( ns === 0 && action === 'view' ) {
 		mw.loader.using( [ 'mediawiki.util', 'mediawiki.api' ] ).then( function () {
 			addLink( false );
+			maybeAutorun();
 		} );
 	}
 }() );
