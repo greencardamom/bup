@@ -77,6 +77,13 @@ GET /api/v1/health           liveness
 
 Full reference: [`api/README.md`](api/README.md).
 
+## Usage statistics
+
+Daily usage counts — chiefly the number of archive.org links added to Wikipedia
+via the tool — are published as JSON Lines at
+`https://tools-static.wmflabs.org/bup/booksup-stats-<year>.jsonl`. See
+[`stats/README.md`](stats/README.md).
+
 ## Repository layout
 
 ```
@@ -84,6 +91,7 @@ python/src/        application code, templates, static assets
   config.yaml.example   copy to config.yaml and fill in (gitignored)
   requirements.txt      Python dependencies
 api/README.md      API documentation
+stats/README.md    usage-statistics documentation
 db/                SQLite db + data (gitignored; built on deploy)
 cache/             Flask filesystem cache (gitignored)
 LICENSE.md         GPL-3.0 (code) / CC-BY-SA-4.0 (docs)

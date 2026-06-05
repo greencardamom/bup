@@ -1,8 +1,6 @@
 # bup usage statistics
 
-bup records a small set of daily usage counts — most importantly **how many
-archive.org book/journal links were added to Wikipedia through the tool** — and
-publishes them as a machine-readable file over HTTP.
+bup records a set of daily usage counts and publishes them in a file accessible over HTTP.
 
 ## The data file
 
@@ -27,7 +25,7 @@ publishes them as a machine-readable file over HTTP.
 | field | meaning |
 |---|---|
 | `date` | the UTC day the record covers (`YYYY-MM-DD`) |
-| `urls_added` | **headline metric:** archive.org URLs added to Wikipedia that day via the tool = `webtool.urls + gadget.urls` |
+| `urls_added` | URLs added to Wikipedia that day via the tool = `webtool.urls + gadget.urls` |
 | `webtool.edits` / `webtool.urls` | edits made / links added via the bup web interface |
 | `gadget.edits` / `gadget.urls` | edits made / links added via the BooksUp on-wiki gadget |
 | `api.page` / `random` / `worklist` / `pages` | calls to each read-only API endpoint (invocations / engagement) |
@@ -71,8 +69,7 @@ that year's file in `www/static/`, and prints it.
 curl https://tools-static.wmflabs.org/bup/booksup-stats-2026.jsonl
 ```
 
-Parse it line by line — each line is one day's JSON object. Build the URL for any
-year from its number; compute month/day from `date` as needed.
+Parse it line by line — each line is one day. 
 
 **On Toolforge:** read `www/static/booksup-stats-<year>.jsonl` directly.
 
