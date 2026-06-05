@@ -6,7 +6,8 @@ worklist so on-wiki gadgets and external bots can fetch candidates for
 an article (or browse the whole worklist) programmatically.
 
 - **Base URL:** `https://bup.toolforge.org/api/v1`
-- **Methods:** `GET` only (read-only — the API never edits anything)
+- **Methods:** `GET`, plus one `POST` (`/pages`) for batch lookup. Read-only —
+  the API never edits anything.
 - **Auth:** none (open)
 - **CORS:** `Access-Control-Allow-Origin: *` — callable from browser JS on
   `*.wikipedia.org` (gadgets/userscripts)
@@ -110,6 +111,55 @@ first). For bots iterating the corpus.
 ```bash
 curl 'https://bup.toolforge.org/api/v1/worklist?type=book&min_count=10&limit=100'
 ```
+
+### `GET /random`
+Random worklist articles — for a "give me something to work on" feature. Same
+filters as `/worklist`.
+
+| param       | type | default | notes                                            |
+|-------------|------|---------|--------------------------------------------------|
+| `limit`     | int  | `1`     | 1–50                                             |
+| `type`      | enum | (all)   | `book`, `sim`, or `ref` — only pages having that |
+| `min_count` | int  | `0`     | only pages with at least this many citations     |
+
+```json
+{ "count": 1,
+  "pages": [ { "title": "HMS Otter (1896)",
+               "counts": { "book": 2, "sim": 0, "ref": 0, "total": 2 } } ] }
+```
+
+```bash
+curl 'https://bup.toolforge.org/api/v1/random?limit=3'
+```
+
+### `POST /pages`
+Batch membership check: given a list of article titles, return the subset that
+is in the worklist (with counts). Use it to intersect the worklist with a set
+you already have — a watchlist, a category's members, a WikiProject's articles —
+so you can find pages worth working on instead of guessing.
+
+Send the titles either as a **newline-separated `text/plain` body** (a
+CORS-safelisted content type, so no preflight) or as JSON `{"titles": [...]}`.
+Titles may use spaces or underscores. Up to **2000** titles per request — send
+larger sets in chunks.
+
+```bash
+# text/plain (one title per line)
+printf 'Miriam Cooper\nNot A Real Article\nElectronic music\n' \
+  | curl -s -X POST -H 'Content-Type: text/plain' --data-binary @- \
+    https://bup.toolforge.org/api/v1/pages
+```
+
+```json
+{ "requested": 3, "found": 2,
+  "pages": [
+    { "title": "Electronic music", "counts": { "book": 1, "sim": 0, "ref": 0, "total": 1 } },
+    { "title": "Miriam Cooper",    "counts": { "book": 1, "sim": 0, "ref": 0, "total": 1 } }
+  ] }
+```
+
+`requested` is how many distinct titles were parsed; `found` how many are in the
+worklist. Titles not in the worklist are simply omitted.
 
 ---
 
