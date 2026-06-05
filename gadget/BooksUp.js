@@ -199,6 +199,7 @@
 			'#booksup-panel h3 .bu-count{flex:0 0 auto;font-weight:normal;white-space:nowrap}' +
 			'#booksup-panel h3 .bu-x{cursor:pointer;font-size:20px;line-height:1;padding:0 2px}' +
 			'#booksup-panel h3 .bu-x:hover{color:#cfe2ff}' +
+			'#booksup-panel .bu-jump{padding:6px 12px;border-bottom:1px solid #eaecf0}' +
 			'#booksup-panel .bu-section{padding:8px 12px;border-bottom:1px solid #eaecf0}' +
 			'#booksup-panel .bu-h{font-weight:bold;margin:0 0 6px;color:#202122}' +
 			'#booksup-panel .bu-none{color:#54595d;font-style:italic}' +
@@ -364,6 +365,15 @@
 			( cites.length === 1 ? '' : 's' ) ).appendTo( $h3 );
 		$( '<span class="bu-x" title="Close">' ).text( '×' )
 			.on( 'click', closePanel ).appendTo( $h3 );
+
+		if ( cites.length ) {
+			var $jump = $( '<div class="bu-jump">' ).appendTo( $panel );
+			$( '<button class="mw-ui-button">' ).text( '↓ Jump to end' )
+				.on( 'click', function () {
+					$panel.stop().animate(
+						{ scrollTop: $panel[ 0 ].scrollHeight }, 200 );
+				} ).appendTo( $jump );
+		}
 
 		var $article = $( '<div class="bu-section">' ).appendTo( $panel );
 		renderArticleSection( $article, cites );
