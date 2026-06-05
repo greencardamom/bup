@@ -123,7 +123,7 @@
 				'border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:13px;padding:0}' +
 			'#booksup-panel h3{margin:0;padding:8px 12px;background:#36c;color:#fff;' +
 				'font-size:14px;border-radius:4px 4px 0 0;display:flex;align-items:center;' +
-				'justify-content:space-between}' +
+				'justify-content:space-between;cursor:move;user-select:none}' +
 			'#booksup-panel h3 .bu-x{cursor:pointer;font-size:20px;line-height:1;padding:0 2px}' +
 			'#booksup-panel h3 .bu-x:hover{color:#cfe2ff}' +
 			'#booksup-panel .booksup-body{padding:8px 12px}' +
@@ -149,6 +149,30 @@
 
 	function closePanel() {
 		$( '#booksup-panel' ).remove();
+	}
+
+	// Drag the panel by its header (the blue band). Switches the panel from its
+	// right-anchored default to left/top on first drag.
+	function makeDraggable( $panel, $handle ) {
+		var sx, sy, startLeft, startTop;
+		$handle.on( 'mousedown', function ( e ) {
+			if ( $( e.target ).closest( '.bu-x' ).length ) { return; }  // not the close X
+			var rect = $panel[ 0 ].getBoundingClientRect();
+			$panel.css( { left: rect.left + 'px', top: rect.top + 'px', right: 'auto' } );
+			sx = e.clientX; sy = e.clientY; startLeft = rect.left; startTop = rect.top;
+			e.preventDefault();
+			$( document ).on( 'mousemove.booksup', onMove ).on( 'mouseup.booksup', onUp );
+		} );
+		function onMove( e ) {
+			var nl = Math.max( 0, Math.min( startLeft + ( e.clientX - sx ),
+				window.innerWidth - 60 ) );
+			var nt = Math.max( 0, Math.min( startTop + ( e.clientY - sy ),
+				window.innerHeight - 30 ) );
+			$panel.css( { left: nl + 'px', top: nt + 'px' } );
+		}
+		function onUp() {
+			$( document ).off( 'mousemove.booksup mouseup.booksup' );
+		}
 	}
 
 	function showPanel( title, wikitext, cites, inEdit ) {
@@ -225,6 +249,7 @@
 			} ).appendTo( $foot );
 
 		$( document.body ).append( $panel );
+		makeDraggable( $panel, $h3 );
 	}
 
 	function run( inEdit ) {
