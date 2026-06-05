@@ -122,7 +122,10 @@
 				'max-height:82vh;overflow:auto;background:#fff;border:1px solid #a2a9b1;' +
 				'border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:13px;padding:0}' +
 			'#booksup-panel h3{margin:0;padding:8px 12px;background:#36c;color:#fff;' +
-				'font-size:14px;border-radius:4px 4px 0 0}' +
+				'font-size:14px;border-radius:4px 4px 0 0;display:flex;align-items:center;' +
+				'justify-content:space-between}' +
+			'#booksup-panel h3 .bu-x{cursor:pointer;font-size:20px;line-height:1;padding:0 2px}' +
+			'#booksup-panel h3 .bu-x:hover{color:#cfe2ff}' +
 			'#booksup-panel .booksup-body{padding:8px 12px}' +
 			'#booksup-panel ul{list-style:none;margin:0;padding:0}' +
 			'#booksup-panel li{padding:8px 0;border-bottom:1px solid #eaecf0}' +
@@ -153,8 +156,11 @@
 		closePanel();
 
 		var $panel = $( '<div id="booksup-panel">' );
-		$( '<h3>' ).text( 'BooksUp — ' + cites.length + ' suggestion' +
-			( cites.length === 1 ? '' : 's' ) ).appendTo( $panel );
+		var $h3 = $( '<h3>' ).appendTo( $panel );
+		$( '<span>' ).text( 'BooksUp — ' + cites.length + ' suggestion' +
+			( cites.length === 1 ? '' : 's' ) ).appendTo( $h3 );
+		$( '<span class="bu-x" title="Close">' ).text( '×' )
+			.on( 'click', closePanel ).appendTo( $h3 );
 
 		var $body = $( '<div class="booksup-body">' ).appendTo( $panel );
 		var $ul = $( '<ul>' ).appendTo( $body );
