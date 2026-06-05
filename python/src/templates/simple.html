@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}BooksUp{% endblock %} — BooksUp</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='bup-ui.css') }}">
+</head>
+{# Sidebar-less centered layout for focused pages: login, outcome notices, and
+   the no-JS preview. Shares the Vector styling with layout.html. #}
+<body class="bu-simple">
+  <div class="bu-simple-box {% block boxclass %}{% endblock %}">
+    <div class="bu-brand">
+      <a href="{{ url_for('index') }}"><span class="bu-books">Books</span>Up</a>
+    </div>
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

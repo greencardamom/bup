@@ -1,15 +1,16 @@
-<!DOCTYPE HTML>
-<html>
-    <head>
-        <title>Book Linker</title>
-    </head>
-    <body>
-        {% if username %}
-        <p>Logged in as: {{ username }} (click to <a href="{{ url_for('logout') }}">logout</a>)</p>
-        <p>Click to <a href="{{ url_for('edit') }}">edit</a> User:GreenC/sandbox</p>
-        {% else %}
-        <p>{{ greeting }}</p>
-        <p><a href="{{ url_for('login') }}">Login</a> automatically via your MediaWiki account</p>
-        {% endif %}
-    </body>
-</html>
+{% extends "simple.html" %}
+
+{% block title %}Sign in{% endblock %}
+
+{% block content %}
+{% if username %}
+  <p>Signed in as <strong>{{ username }}</strong>.</p>
+  <p><a class="bu-btn bu-btn-primary" href="{{ url_for('main') }}">Open the worklist</a></p>
+  <p class="bu-formnote"><a href="{{ url_for('logout') }}">Log out</a></p>
+{% else %}
+  <p class="bu-lead">A tool for adding book links to Wikipedia.</p>
+  <p>BooksUp adds book and journal links to citations on Wikipedia. Log in with
+     your Wikipedia account to review and apply suggestions.</p>
+  <p><a class="bu-btn bu-btn-primary" href="{{ url_for('login') }}">Log in with your Wikipedia account</a></p>
+{% endif %}
+{% endblock %}

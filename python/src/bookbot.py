@@ -51,15 +51,18 @@ def preview_rows(record, wikitext, showexpired=False):
     """Build the rows for the preview/analysis table (ported from makepreview).
 
     Returns (rows, numofcites, available) where rows is a list of
-    {"oldcite": str, "newcite_html": str}. Citations whose oldcite is no longer
-    present in the article are "expired": skipped (default) or shown with a red
-    note (showexpired=True), matching the awk G["showexpired"] toggle.
+    {"i": int, "oldcite": str, "newcite_html": str}. `i` is the citation's
+    position in record["citations"] (stable id used by the inline UI's
+    Add/Skip selection, so /apply can act on just the chosen citations).
+    Citations whose oldcite is no longer present in the article are "expired":
+    skipped (default) or shown with a red note (showexpired=True), matching the
+    awk G["showexpired"] toggle.
     """
     citations = record.get("citations", [])
     numofcites = len(citations)
     rows = []
     expired = 0
-    for c in citations:
+    for idx, c in enumerate(citations):
         oldcite = c.get("oldcite", "")
         newcite = c.get("newcite", "")
         iaurl = archive_url(c)
@@ -68,6 +71,7 @@ def preview_rows(record, wikitext, showexpired=False):
         if showexpired:
             if not present:
                 rows.append({
+                    "i": idx,
                     "oldcite": oldcite,
                     "newcite_html": '<mark class="red">Old cite no longer '
                                     'visible in article. Deleted? Modified?'
@@ -81,6 +85,7 @@ def preview_rows(record, wikitext, showexpired=False):
                 continue
 
         rows.append({
+            "i": idx,
             "oldcite": oldcite,
             "newcite_html": colorcite(newcite, iaurl),
         })

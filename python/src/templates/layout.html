@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}BooksUp{% endblock %} — BooksUp</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='bup-ui.css') }}">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+<div class="bu-frame">
+
+  {# --- Left sidebar: brand, VIEWS, TOOLS, user ----------------------- #}
+  <nav class="bu-sidebar">
+    <div class="bu-brand">
+      <a href="{{ url_for('main', view='top', wiki=wiki) }}"><span class="bu-books">Books</span>Up</a>
+    </div>
+
+    {% set views = [
+        ('top',       'Top articles'),
+        ('random',    'Random'),
+        ('watchlist', 'Watchlist'),
+        ('category',  'Category'),
+        ('backlinks', 'Backlinks'),
+        ('search',    'Search'),
+    ] %}
+    <div class="bu-navgroup">
+      <h3>Views</h3>
+      <ul>
+        {% for vid, label in views %}
+        <li class="{{ 'active' if view == vid else '' }}">
+          <a href="{{ url_for('main', view=vid, wiki=wiki) }}">{{ label }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="bu-navgroup">
+      <h3>Tools</h3>
+      <ul>
+        <li class="{{ 'active' if view == 'dashboard' else '' }}">
+          <a href="{{ url_for('dashboard', wiki=wiki) }}">Dashboard</a>
+        </li>
+      </ul>
+    </div>
+
+    {% if username %}
+    <div class="bu-userbox">
+      <div class="bu-username">{{ username }}</div>
+      <a href="{{ url_for('about') }}">About</a> ·
+      <a href="{{ url_for('logout') }}">Log out</a>
+    </div>
+    {% endif %}
+  </nav>
+
+  {# --- Content ------------------------------------------------------- #}
+  <main class="bu-content">
+    <div class="bu-header">
+      <h1>{% block heading %}{{ self.title() }}{% endblock %}</h1>
+      {% if wikis %}
+      {# A tool page (e.g. dashboard) isn't a /main view, so switching wiki there
+         lands on Top for the chosen wiki. #}
+      {% set _viewids = ['top', 'random', 'watchlist', 'category', 'backlinks', 'search'] %}
+      <form class="bu-wiki-select" method="get" action="{{ url_for('main') }}">
+        <input type="hidden" name="view" value="{{ view if view in _viewids else 'top' }}">
+        <label for="bu-wiki">Wiki:</label>
+        <select id="bu-wiki" name="wiki" onchange="this.form.submit()">
+          {% for wid, label, has_data in wikis %}
+          <option value="{{ wid }}"{{ ' selected' if wid == wiki else '' }}>
+            {{ label }}{{ '' if has_data else ' — no data yet' }}
+          </option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
+    </div>
+
+    {% block content %}{% endblock %}
+  </main>
+
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

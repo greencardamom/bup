@@ -1,0 +1,421 @@
+/* bup web UI (NOT the on-wiki BooksUp gadget) — hand-rolled Wikipedia/Vector
+   look-and-feel.
+   No framework, no build step. Palette and type follow MediaWiki's Vector:
+   link blue #3366cc, text #202122, panels #f8f9fa/#eaecf0, borders #a2a9b1. */
+
+:root {
+  --link:        #3366cc;
+  --link-visited:#795cb2;
+  --link-red:    #ba0000;   /* "missing"/destructive accent */
+  --text:        #202122;
+  --text-subtle: #54595d;
+  --bg:          #ffffff;
+  --bg-panel:    #f8f9fa;
+  --bg-panel-2:  #eaecf0;
+  --border:      #a2a9b1;
+  --border-soft: #c8ccd1;
+  --accent-bar:  #36c;
+  --sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --serif: "Linux Libertine", "Georgia", "Times", serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--link); text-decoration: none; }
+a:visited { color: var(--link-visited); }
+a:hover { text-decoration: underline; }
+a.new, a.new:visited { color: var(--link-red); }
+
+/* --- Page frame: sidebar + content ------------------------------------ */
+
+.bu-frame {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+
+.bu-sidebar {
+  flex: 0 0 12.5em;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-soft);
+  padding: 1em 0.75em;
+  min-height: 100vh;
+}
+
+.bu-content {
+  flex: 1 1 auto;
+  padding: 1.25em 1.75em 3em;
+  max-width: 60em;
+}
+
+/* --- Sidebar ----------------------------------------------------------- */
+
+.bu-brand {
+  font-family: var(--serif);
+  font-size: 1.45em;
+  font-weight: bold;
+  color: var(--text);
+  padding: 0 0.25em 0.75em;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 0.75em;
+}
+.bu-brand a, .bu-brand a:visited { color: var(--text); }
+.bu-brand .bu-books { color: var(--accent-bar); }
+
+.bu-navgroup { margin-bottom: 1.25em; }
+.bu-navgroup h3 {
+  font-size: 0.72em;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-subtle);
+  margin: 0 0 0.4em 0.4em;
+}
+.bu-navgroup ul { list-style: none; margin: 0; padding: 0; }
+.bu-navgroup li { margin: 0; }
+.bu-navgroup li a,
+.bu-navgroup li span {
+  display: block;
+  padding: 0.28em 0.6em;
+  border-radius: 2px;
+  font-size: 0.95em;
+}
+.bu-navgroup li a:hover { background: var(--bg-panel-2); text-decoration: none; }
+.bu-navgroup li.active a {
+  background: var(--bg-panel-2);
+  font-weight: bold;
+  border-left: 3px solid var(--accent-bar);
+  padding-left: calc(0.6em - 3px);
+}
+.bu-navgroup li .bu-soon {
+  color: var(--text-subtle);
+  cursor: default;
+}
+.bu-navgroup li .bu-soon small { opacity: 0.7; }
+
+.bu-userbox {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 0.75em;
+  margin-top: 1em;
+  font-size: 0.9em;
+  color: var(--text-subtle);
+}
+.bu-userbox .bu-username { font-weight: bold; color: var(--text); }
+
+/* --- Content header ---------------------------------------------------- */
+
+.bu-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1em;
+  border-bottom: 3px solid var(--accent-bar);
+  padding-bottom: 0.3em;
+  margin-bottom: 0.25em;
+}
+.bu-header h1 {
+  font-family: var(--serif);
+  font-weight: normal;
+  font-size: 1.7em;
+  margin: 0;
+}
+.bu-wiki-select { font-size: 0.9em; color: var(--text-subtle); white-space: nowrap; }
+.bu-wiki-select select {
+  font-family: var(--sans);
+  font-size: 1em;
+  padding: 0.15em 0.3em;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg);
+}
+
+.bu-summary {
+  color: var(--text-subtle);
+  margin: 0.5em 0 1.25em;
+  font-size: 0.95em;
+}
+.bu-summary strong { color: var(--text); }
+
+/* --- Tables (wikitable-style) ------------------------------------------ */
+
+table.bu-table {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--bg);
+  margin: 0.5em 0;
+}
+table.bu-table th, table.bu-table td {
+  border: 1px solid var(--border-soft);
+  padding: 0.4em 0.6em;
+  text-align: left;
+  vertical-align: top;
+}
+table.bu-table thead th {
+  background: var(--bg-panel-2);
+  font-weight: bold;
+  border-bottom: 1px solid var(--border);
+}
+table.bu-table tbody tr:nth-child(even) { background: var(--bg-panel); }
+table.bu-table td.num, table.bu-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.bu-table td.dim { color: var(--text-subtle); }
+
+/* --- Buttons / actions ------------------------------------------------- */
+
+.bu-btn {
+  display: inline-block;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  padding: 0.25em 0.8em;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+}
+.bu-btn:hover { background: var(--bg-panel-2); text-decoration: none; }
+.bu-btn-primary {
+  background: var(--accent-bar);
+  border-color: #2a4b8d;
+  color: #fff;
+}
+.bu-btn-primary:hover { background: #2a4b8d; color: #fff; }
+
+/* --- Pager ------------------------------------------------------------- */
+
+.bu-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25em;
+  margin: 1.25em 0;
+  color: var(--text-subtle);
+}
+.bu-pager a[aria-disabled="true"],
+.bu-pager .bu-pager-disabled {
+  color: var(--border);
+  pointer-events: none;
+}
+
+/* --- Inline forms (search / category / backlinks inputs) --------------- */
+
+.bu-viewform {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  padding: 0.75em 1em;
+  margin: 0.25em 0 1em;
+}
+.bu-viewform input[type="text"] {
+  font-size: 1em;
+  padding: 0.3em 0.5em;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  min-width: 18em;
+}
+.bu-viewform label { margin-right: 0.75em; font-size: 0.95em; }
+.bu-formnote { margin: 0.6em 0 0; font-size: 0.9em; color: var(--text-subtle); }
+
+/* --- Notices ----------------------------------------------------------- */
+
+.bu-notice {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-left: 4px solid var(--accent-bar);
+  padding: 0.9em 1.1em;
+  margin: 1em 0;
+  border-radius: 2px;
+}
+.bu-notice.bu-empty { color: var(--text-subtle); }
+
+mark.red { color: var(--link-red); background: none; }
+
+/* --- Inline preview expand (bup-ui.js) --------------------------------- */
+
+.bu-btn.bu-run.bu-open { background: var(--bg-panel-2); color: var(--text); }
+
+tr.bu-expand > td {
+  background: var(--bg-panel);
+  border-top: none;
+  padding: 0.9em 1.1em;
+}
+tr.bu-done { opacity: 0.55; }
+.bu-done-msg { font-size: 0.9em; white-space: nowrap; }
+.bu-done-msg.bu-ok { color: #14866d; }
+.bu-done-msg.bu-warn { color: var(--text-subtle); }
+
+.bu-loading, .bu-error { color: var(--text-subtle); font-style: italic; }
+.bu-error { color: var(--link-red); }
+
+.bu-preview-head { margin: 0 0 0.75em; }
+.bu-preview .bu-empty { color: var(--text-subtle); margin: 0; }
+
+/* Scrollable list of proposed changes (mirrors the BooksUp gadget panel). */
+.bu-cite-list {
+  list-style: none;
+  margin: 0 0 0.75em;
+  padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  background: var(--bg);
+}
+li.bu-cite {
+  padding: 0.75em 0.9em;
+  border-bottom: 1px solid var(--border-soft);
+}
+li.bu-cite:last-child { border-bottom: none; }
+li.bu-cite.bu-skipped { opacity: 0.45; }
+
+.bu-toggle { margin-bottom: 0.5em; }
+.bu-tbtn {
+  font-family: var(--sans);
+  font-size: 0.85em;
+  padding: 0.15em 0.9em;
+  margin-right: 0.4em;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.bu-add.bu-on { background: var(--accent-bar); border-color: #2a4b8d; color: #fff; }
+.bu-skip.bu-on { background: var(--link-red); border-color: var(--link-red); color: #fff; }
+
+.bu-cite-label {
+  font-size: 0.7em;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-subtle);
+  margin-bottom: 0.15em;
+}
+.bu-cite-before, .bu-cite-after {
+  font-family: ui-monospace, "SFMono-Regular", "Consolas", monospace;
+  font-size: 0.85em;
+  line-height: 1.45;
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  padding: 0.5em 0.65em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.bu-cite-after { margin-top: 0.4em; }
+
+.bu-confirmbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  margin-top: 0.5em;
+}
+.bu-confirm-status { font-size: 0.9em; color: var(--text-subtle); }
+.bu-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* --- Dashboard (TOOLS) ------------------------------------------------- */
+
+.bu-dash-h {
+  font-family: var(--serif);
+  font-weight: normal;
+  font-size: 1.3em;
+  margin: 1.5em 0 0.5em;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 0.2em;
+}
+.bu-dash-h3 { font-size: 1em; margin: 1.25em 0 0.5em; }
+
+.bu-cards { display: flex; flex-wrap: wrap; gap: 0.75em; margin: 0.5em 0 1em; }
+.bu-card {
+  flex: 1 1 8em;
+  min-width: 7em;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  padding: 0.75em 1em;
+}
+.bu-card-n {
+  font-size: 1.6em;
+  font-weight: bold;
+  color: var(--accent-bar);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.bu-card-l { font-size: 0.85em; color: var(--text-subtle); margin-top: 0.2em; }
+
+.bu-bars { margin: 0.5em 0 1em; }
+.bu-bar-row { display: flex; align-items: center; gap: 0.6em; margin: 2px 0; }
+.bu-bar-date {
+  flex: 0 0 6.5em;
+  font-family: ui-monospace, "SFMono-Regular", "Consolas", monospace;
+  font-size: 0.8em;
+  color: var(--text-subtle);
+}
+.bu-bar-track {
+  flex: 1 1 auto;
+  background: var(--bg-panel-2);
+  border-radius: 2px;
+  height: 1.1em;
+  overflow: hidden;
+}
+.bu-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-bar);
+  min-width: 1px;
+}
+.bu-bar-val {
+  flex: 0 0 3.5em;
+  text-align: right;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}
+
+.bu-dash-api { width: auto; min-width: 16em; }
+
+.bu-dash-controls { display: inline-block; margin: 0.25em 0 0.75em; }
+.bu-monthnav { display: flex; align-items: center; gap: 1em; margin: 0.5em 0 0.75em; }
+.bu-monthnav strong { font-variant-numeric: tabular-nums; }
+
+/* --- Sidebar-less pages (login / outcome / no-JS preview / about) ------ */
+
+body.bu-simple { background: var(--bg-panel); }
+.bu-simple-box {
+  max-width: 34em;
+  margin: 3.5em auto;
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  padding: 1.25em 1.75em 1.75em;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.bu-simple-box.bu-wide { max-width: 56em; }
+.bu-simple-box .bu-brand { margin-bottom: 1em; }
+.bu-lead { font-size: 1.05em; }
+.bu-done-headline { font-size: 1.1em; }
+.bu-cite-list-static { max-height: none; }   /* no scroll cap on the full page */
+
+/* --- Responsive: collapse the sidebar on narrow screens ---------------- */
+
+@media (max-width: 720px) {
+  .bu-frame { display: block; }
+  .bu-sidebar {
+    flex-basis: auto;
+    min-height: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .bu-navgroup { display: inline-block; vertical-align: top; margin-right: 1.5em; }
+  .bu-content { padding: 1em; max-width: none; }
+}

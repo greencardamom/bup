@@ -1,8 +1,0 @@
-{% extends "base.html" %}
-
-{% block body %}
-<p>Success! Added {{ count }} book link(s) to:
-<a href="https://en.wikipedia.org/wiki/{{ page }}">{{ page }}</a>
-(<a href="https://en.wikipedia.org/w/index.php?title={{ page }}&action=history">view edit history</a>)<br><br></p>
-<p><a href="{{ url_for('main') }}">Return to list</a></p>
-{% endblock %}
