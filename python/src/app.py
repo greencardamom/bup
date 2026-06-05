@@ -63,8 +63,7 @@ PAGE_SIZE = 50
 RANDOM_COUNT = 25
 SEARCH_LIMIT = 50
 
-# Sidebar view modes. 'top' is fully built; the others are placeholders until
-# later steps. Titles drive the content-header heading and <title>.
+# Sidebar view modes. Titles drive the content-header heading and <title>.
 VIEW_TITLES = {
     "top":       "Top articles",
     "random":    "Random",
@@ -73,6 +72,8 @@ VIEW_TITLES = {
     "backlinks": "Backlinks",
     "search":    "Search",
 }
+# View shown when none is requested (the landing view).
+DEFAULT_VIEW = "random"
 
 
 def current_wiki():
@@ -345,9 +346,9 @@ def main():
             'index.html', username=username, greeting=greeting)
 
     wiki_id = current_wiki()
-    view = request.args.get('view', 'top')
+    view = request.args.get('view', DEFAULT_VIEW)
     if view not in VIEW_TITLES:
-        view = 'top'
+        view = DEFAULT_VIEW
 
     ctx = dict(
         username=username,

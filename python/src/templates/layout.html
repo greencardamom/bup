@@ -13,7 +13,7 @@
   {# --- Left sidebar: brand, VIEWS, TOOLS, user ----------------------- #}
   <nav class="bu-sidebar">
     <div class="bu-brand">
-      <a href="{{ url_for('main', view='top', wiki=wiki) }}"><span class="bu-books">Books</span>Up</a>
+      <a href="{{ url_for('main', wiki=wiki) }}"><span class="bu-books">Books</span>Up</a>
     </div>
 
     {% set views = [
@@ -59,10 +59,10 @@
       <h1>{% block heading %}{{ self.title() }}{% endblock %}</h1>
       {% if wikis %}
       {# A tool page (e.g. dashboard) isn't a /main view, so switching wiki there
-         lands on Top for the chosen wiki. #}
+         lands on the default view for the chosen wiki. #}
       {% set _viewids = ['top', 'random', 'watchlist', 'category', 'backlinks', 'search'] %}
       <form class="bu-wiki-select" method="get" action="{{ url_for('main') }}">
-        <input type="hidden" name="view" value="{{ view if view in _viewids else 'top' }}">
+        <input type="hidden" name="view" value="{{ view if view in _viewids else 'random' }}">
         <label for="bu-wiki">Wiki:</label>
         <select id="bu-wiki" name="wiki" onchange="this.form.submit()">
           {% for wid, label, has_data in wikis %}

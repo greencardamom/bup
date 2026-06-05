@@ -133,7 +133,7 @@
     <input type="hidden" name="view" value="category">
     <input type="hidden" name="wiki" value="{{ wiki }}">
     <label for="bu-name">Category:</label>
-    <input id="bu-name" type="text" name="name" value="{{ name or '' }}" placeholder="e.g. 1980s films" autofocus>
+    <input id="bu-name" type="text" name="name" value="{{ name or '' }}" placeholder="e.g. {{ range(1800, 1944) | random }} births" autofocus>
     <input class="bu-btn bu-btn-primary" type="submit" value="Find">
   </form>
   {% if name %}
