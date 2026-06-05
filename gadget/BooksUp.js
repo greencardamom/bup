@@ -191,7 +191,12 @@
 				'border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:13px;padding:0}' +
 			'#booksup-panel h3{margin:0;padding:8px 12px;background:#36c;color:#fff;' +
 				'font-size:14px;border-radius:4px 4px 0 0;display:flex;align-items:center;' +
-				'justify-content:space-between;cursor:move;user-select:none}' +
+				'gap:6px;cursor:move;user-select:none;position:sticky;top:0;z-index:2}' +
+			'#booksup-panel h3 .bu-brand{flex:0 0 auto;font-weight:bold}' +
+			'#booksup-panel h3 .bu-sep{flex:0 0 auto;opacity:.6}' +
+			'#booksup-panel h3 .bu-title{flex:1 1 auto;min-width:0;overflow:hidden;' +
+				'white-space:nowrap;text-overflow:ellipsis;font-weight:normal}' +
+			'#booksup-panel h3 .bu-count{flex:0 0 auto;font-weight:normal;white-space:nowrap}' +
 			'#booksup-panel h3 .bu-x{cursor:pointer;font-size:20px;line-height:1;padding:0 2px}' +
 			'#booksup-panel h3 .bu-x:hover{color:#cfe2ff}' +
 			'#booksup-panel .bu-section{padding:8px 12px;border-bottom:1px solid #eaecf0}' +
@@ -248,10 +253,6 @@
 	}
 
 	function renderArticleSection( $section, cites ) {
-		$( '<div class="bu-h">' ).text( 'This article — ' + ( cites.length
-			? cites.length + ' suggestion' + ( cites.length === 1 ? '' : 's' )
-			: 'no suggestions' ) ).appendTo( $section );
-
 		if ( !cites.length ) {
 			$( '<div class="bu-none">' )
 				.text( 'No book suggestions for this article.' ).appendTo( $section );
@@ -355,7 +356,12 @@
 
 		var $panel = $( '<div id="booksup-panel">' );
 		var $h3 = $( '<h3>' ).appendTo( $panel );
-		$( '<span>' ).text( 'BooksUp' ).appendTo( $h3 );
+		$( '<span class="bu-brand">' ).text( 'BooksUp' ).appendTo( $h3 );
+		$( '<span class="bu-sep">' ).text( '|' ).appendTo( $h3 );
+		$( '<span class="bu-title">' ).text( title.replace( /_/g, ' ' ) ).appendTo( $h3 );
+		$( '<span class="bu-sep">' ).text( '|' ).appendTo( $h3 );
+		$( '<span class="bu-count">' ).text( cites.length + ' book' +
+			( cites.length === 1 ? '' : 's' ) ).appendTo( $h3 );
 		$( '<span class="bu-x" title="Close">' ).text( '×' )
 			.on( 'click', closePanel ).appendTo( $h3 );
 
