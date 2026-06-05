@@ -1,0 +1,64 @@
+{{short description|User script for adding book and journal links to citations}}
+
+'''BooksUp''' is a user script that finds, and helps you add, links to freely
+readable scanned copies of the books and journals cited in an article. Proposed
+changes are loaded into the normal edit window so you can review (and modify)
+them before saving — nothing is ever saved automatically.
+
+It is the on-wiki front end for the [https://bup.toolforge.org bup tool], which
+pre-computes the links; the script reads them through bup's read-only API.
+
+[[File:BooksUp gadget.jpg|thumb|right|320px|The BooksUp panel: suggestions for the
+current article, with the proposed link shown in blue.]]
+
+== Installation ==
+
+{{Iusc|User:GreenC/BooksUp.js}}
+
+If you have the [[User:Enterprisey/script-installer|script-installer]] gadget,
+click the '''install''' button above. Otherwise, add the line to your
+[[Special:MyPage/common.js|common.js]] and save, then bypass your browser cache
+({{Key press|Ctrl|Shift|R}}).
+
+== Usage ==
+
+Open any article; a '''BooksUp''' link appears in the ''Tools'' menu (it is also
+available while editing the wikitext). Click it to open the BooksUp panel.
+
+=== This article ===
+
+Any suggestions for the current article are listed, each showing the '''current'''
+citation and the '''proposed''' one. The added link is shown in blue — click it to
+open the scanned copy in a new tab and confirm it is the right source and page.
+
+* Use the '''Add''' / '''Skip''' buttons under each suggestion to choose which to
+  apply.
+* Click '''Open in editor''' to load the accepted changes into the edit window
+  (or '''Apply to editor''' if you are already editing). Review the diff with
+  ''Show changes'', adjust anything you like, and save. Edits are made under your
+  own account name.
+
+=== Finding articles ===
+
+Only a small fraction of articles have available suggestions, so the panel also lists
+'''Other articles with BooksUp suggestions available''':
+
+* '''Random''' — jump to a random article that has suggestions.
+* '''My watchlist''' — list the articles on your watchlist that have suggestions.
+* '''Browse worklist''' — the full list, on [https://bup.toolforge.org bup.toolforge.org].
+
+Choosing a random or watchlist article takes you there with the panel already open.
+
+== Notes ==
+
+* Nothing is saved automatically — every change goes through the edit window for
+  your review first, and is attributed to your account.
+* The underlying list is refreshed periodically, so a suggestion may occasionally
+  no longer apply, and new suggestions may become available later.
+
+== See also ==
+
+* [https://bup.toolforge.org The bup tool]
+* [https://github.com/greencardamom/bup Source code and documentation]
+
+[[Category:Wikipedia user scripts]]
