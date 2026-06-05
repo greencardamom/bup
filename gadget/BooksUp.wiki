@@ -8,6 +8,9 @@ them before saving — nothing is ever saved automatically.
 It is the on-wiki front end for the [https://bup.toolforge.org bup tool], which
 pre-computes the links; the script reads them through bup's read-only API.
 
+[[File:BooksUp screencast.webm|thumb|right|400px|A short screencast: opening the
+BooksUp panel, checking a suggestion, and applying it in the edit window.]]
+
 [[File:BooksUp gadget.jpg|thumb|right|320px|The BooksUp panel: suggestions for the
 current article, with the proposed link shown in blue.]]
 
