@@ -19,7 +19,6 @@ If you have the [[User:Enterprisey/script-installer|script-installer]] gadget, c
 == Usage ==
 Open any article; a '''BooksUp''' link appears in the ''Tools'' menu (it is also available while editing the wikitext). Click it to open the BooksUp panel.
 
-=== This article ===
 Any suggestions for the current article are listed, each showing the '''current''' citation and the '''proposed''' one. The added link is shown in blue. Click it to open the scanned copy in a new tab and confirm it is the right source and page.
 
 * Use the '''Add''' / '''Skip''' buttons under each suggestion to choose which to apply.
