@@ -13,7 +13,7 @@
 It is the wiki front end for the [https://bup.toolforge.org bup tool], which pre-computes the links; the script reads them through bup's API.
 
 == Installation ==
-If you have the [[User:Enterprisey/script-installer|script-installer]] gadget, click the '''install''' button above. Otherwise, add the following line to your [[Special:MyPage/common.js|common.js]] and save, then bypass your browser cache ({{Key press|Ctrl|Shift|R}}).
+If you have the [[User:Enterprisey/script-installer|script-installer]] gadget, click the '''install''' button in the infobox (right). Otherwise, add the following line to your [[Special:MyPage/common.js|common.js]] and save, then bypass your browser cache ({{Key press|Ctrl|Shift|R}}).
 : importScript( 'User:GreenC/BooksUp.js' ); // Backlink: [[User:GreenC/BooksUp.js]]
 
 == Usage ==
