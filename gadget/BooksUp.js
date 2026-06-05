@@ -310,7 +310,7 @@
 	}
 
 	function renderDiscoverSection( $section, inEdit ) {
-		$( '<div class="bu-h">' ).text( 'Find articles' ).appendTo( $section );
+		$( '<div class="bu-h">' ).text( 'Articles with BooksUp suggestions available' ).appendTo( $section );
 		var $actions = $( '<div class="bu-actions">' ).appendTo( $section );
 		var $results = $( '<div class="bu-results">' ).appendTo( $section );
 
