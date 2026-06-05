@@ -137,6 +137,40 @@ def fetch_page_batch(conn, after_id, limit):
     return [_row_with_citations(r) for r in cur.fetchall()]
 
 
+def random_pages(conn, limit=1, min_count=0, ctype=None):
+    """`limit` random worklist pages (for the gadget's 'random article')."""
+    where, args = ["count >= ?"], [int(min_count)]
+    if ctype == "book":
+        where.append("book_count > 0")
+    elif ctype == "sim":
+        where.append("sim_count > 0")
+    elif ctype == "ref":
+        where.append("ref_count > 0")
+    sql = ("SELECT id, page, count, book_count, sim_count, ref_count FROM pages "
+           "WHERE %s ORDER BY RANDOM() LIMIT ?" % " AND ".join(where))
+    args.append(int(limit))
+    return [dict(r) for r in conn.execute(sql, args).fetchall()]
+
+
+def pages_present(conn, titles):
+    """Given a list of titles, return the worklist rows for those present
+    (for the gadget's watchlist/category intersection). Chunked to stay under
+    SQLite's bound-variable limit."""
+    titles = [t for t in titles if t]
+    out, seen, CHUNK = [], set(), 900
+    for i in range(0, len(titles), CHUNK):
+        chunk = titles[i:i + CHUNK]
+        ph = ",".join("?" * len(chunk))
+        cur = conn.execute(
+            "SELECT page, count, book_count, sim_count, ref_count FROM pages "
+            "WHERE page IN (%s)" % ph, chunk)
+        for r in cur.fetchall():
+            if r["page"] not in seen:
+                seen.add(r["page"])
+                out.append(dict(r))
+    return out
+
+
 def stats(conn):
     row = conn.execute(
         "SELECT COUNT(*) AS pages, "

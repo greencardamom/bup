@@ -24,7 +24,8 @@ DEFAULT_LIMIT = 50
 @api.after_request
 def _cors(resp):
     resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
     return resp
 
 
@@ -51,6 +52,14 @@ def _citation_out(c):
         "meta": c.get("meta", ""),
         "url": bookbot.archive_url(c),
         "type": dbmod.citation_type(c),
+    }
+
+
+def _page_brief(r):
+    return {
+        "title": r["page"],
+        "counts": {"book": r["book_count"], "sim": r["sim_count"],
+                   "ref": r["ref_count"], "total": r["count"]},
     }
 
 
@@ -101,9 +110,49 @@ def worklist():
         "limit": limit, "offset": offset,
         "type": ctype, "min_count": min_count,
         "count": len(rows),
-        "pages": [{
-            "title": r["page"],
-            "counts": {"book": r["book_count"], "sim": r["sim_count"],
-                       "ref": r["ref_count"], "total": r["count"]},
-        } for r in rows],
+        "pages": [_page_brief(r) for r in rows],
+    })
+
+
+@api.route("/random")
+def random():
+    limit = _int_arg("limit", 1, 1, 50)
+    min_count = _int_arg("min_count", 0, 0, 10 ** 9)
+    ctype = request.args.get("type")
+    if ctype not in ("book", "sim", "ref"):
+        ctype = None
+    rows = dbmod.random_pages(_conn(), limit=limit, min_count=min_count, ctype=ctype)
+    return jsonify({"count": len(rows), "pages": [_page_brief(r) for r in rows]})
+
+
+# Max titles accepted per /pages request; the client chunks larger sets.
+PAGES_MAX = 2000
+
+
+@api.route("/pages", methods=["POST"])
+def pages():
+    """Given a list of titles, return the subset that's in the worklist (+counts).
+    Powers watchlist/category intersection in the gadget. Accepts either a
+    newline-separated text/plain body (CORS-safelisted -> no preflight) or
+    JSON {"titles": [...]}."""
+    titles = None
+    data = request.get_json(silent=True)
+    if isinstance(data, dict) and isinstance(data.get("titles"), list):
+        titles = data["titles"]
+    else:
+        titles = request.get_data(as_text=True).splitlines()
+
+    seen, norm = set(), []
+    for t in titles:
+        t = ( t or "" ).replace("_", " ").strip()
+        if t and t not in seen:
+            seen.add(t)
+            norm.append(t)
+        if len(norm) >= PAGES_MAX:
+            break
+
+    rows = dbmod.pages_present(_conn(), norm)
+    return jsonify({
+        "requested": len(norm), "found": len(rows),
+        "pages": [_page_brief(r) for r in rows],
     })
