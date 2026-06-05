@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 #
 # Daily usage stats for bup + the BooksUp gadget. Appends one JSON line per day
-# to booksup-stats-<year>.jsonl (in the db/ dir), e.g.:
+# to www/static/booksup-stats-<year>.jsonl — served (read-only, public) at
+#   https://tools-static.wmflabs.org/bup/booksup-stats-<year>.jsonl
+# so other tools (e.g. iabotwatch on acre) can fetch it over HTTP. E.g.:
 #
 #   {"date":"2026-06-05","urls_added":49,
 #    "webtool":{"edits":1,"urls":44},
@@ -32,6 +34,8 @@ from datetime import date, timedelta, datetime
 import db as dbmod
 
 DB_DIR = os.path.dirname(dbmod.db_path())
+# www/static is served at https://tools-static.wmflabs.org/bup/ (sibling of db/)
+STATIC_DIR = os.path.join(os.path.dirname(DB_DIR), "static")
 LOG_TXT = os.path.join(DB_DIR, "log.txt")
 API_HITS = os.path.join(DB_DIR, "api_hits.log")
 REPLICA_CNF = os.path.expanduser("~/replica.my.cnf")
@@ -125,9 +129,14 @@ def main():
         "gadget": {"edits": g_e, "urls": g_u},
         "api": api,
     }
-    out = os.path.join(DB_DIR, "booksup-stats-%d.jsonl" % d.year)
+    os.makedirs(STATIC_DIR, exist_ok=True)
+    out = os.path.join(STATIC_DIR, "booksup-stats-%d.jsonl" % d.year)
     with open(out, "a", encoding="utf-8") as f:
         f.write(json.dumps(rec) + "\n")
+    try:
+        os.chmod(out, 0o644)   # readable by the tools-static web server
+    except OSError:
+        pass
     print(json.dumps(rec))
 
 
