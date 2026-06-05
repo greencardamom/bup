@@ -11,3 +11,5 @@ requests_toolbelt==1.0.0
 Flask-Session==0.8.0
 redis==8.0.0
 flask_caching==2.4.0
+PyMySQL==1.1.1
+

@@ -8,6 +8,9 @@
 # `oldcite` verbatim, so a consumer must match against current article text
 # before applying (exactly what bup itself does).
 
+import os
+from datetime import datetime
+
 import flask
 from flask import Blueprint, jsonify, request
 
@@ -35,6 +38,17 @@ def _conn():
     if "db" not in flask.g:
         flask.g.db = dbmod.connect()
     return flask.g.db
+
+
+def _log_hit(endpoint):
+    """Append one line per API call for the daily stats job (stats.py).
+    Format: '<utc-iso> <endpoint>'. Append-only; never read by the app."""
+    try:
+        path = os.path.join(os.path.dirname(dbmod.db_path()), "api_hits.log")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("%s %s\n" % (datetime.utcnow().isoformat(), endpoint))
+    except OSError:
+        pass
 
 
 def _int_arg(name, default, lo, hi):
@@ -81,6 +95,7 @@ def stats():
 
 @api.route("/page/<path:title>")
 def page(title):
+    _log_hit("page")
     title = title.replace("_", " ").strip()
     rec = dbmod.get_page_by_title(_conn(), title)
     if rec is None:
@@ -98,6 +113,7 @@ def page(title):
 
 @api.route("/worklist")
 def worklist():
+    _log_hit("worklist")
     limit = _int_arg("limit", DEFAULT_LIMIT, 1, MAX_LIMIT)
     offset = _int_arg("offset", 0, 0, 10 ** 9)
     min_count = _int_arg("min_count", 0, 0, 10 ** 9)
@@ -116,6 +132,7 @@ def worklist():
 
 @api.route("/random")
 def random():
+    _log_hit("random")
     limit = _int_arg("limit", 1, 1, 50)
     min_count = _int_arg("min_count", 0, 0, 10 ** 9)
     ctype = request.args.get("type")
@@ -135,6 +152,7 @@ def pages():
     Powers watchlist/category intersection in the gadget. Accepts either a
     newline-separated text/plain body (CORS-safelisted -> no preflight) or
     JSON {"titles": [...]}."""
+    _log_hit("pages")
     titles = None
     data = request.get_json(silent=True)
     if isinstance(data, dict) and isinstance(data.get("titles"), list):

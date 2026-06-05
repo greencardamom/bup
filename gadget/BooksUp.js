@@ -31,7 +31,7 @@
 	var AUTORUN_KEY = 'BooksUp.autorun';             // auto-open on arrival (localStorage)
 
 	function editSummary( n ) {
-		return 'Adding book link' + ( n === 1 ? '' : 's' ) +
+		return 'Adding ' + n + ' book link' + ( n === 1 ? '' : 's' ) +
 			' ([[' + DOC + '|BooksUp]])';
 	}
 
