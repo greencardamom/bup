@@ -7,6 +7,7 @@ editing tool and as a read-only data API.
 
 - **Live tool:** https://bup.toolforge.org
 - **API:** https://bup.toolforge.org/api/v1 — see [`api/README.md`](api/README.md)
+- **Gadget:** [User:GreenC/BooksUp](https://en.wikipedia.org/wiki/User:GreenC/BooksUp) — on-wiki **BooksUp** user script
 - **Maintainer:** [User:GreenC](https://en.wikipedia.org/wiki/User:GreenC)
 
 ---
@@ -60,6 +61,8 @@ review and apply them, and serves them over an API.
 | `python/src/auditlog.py` | Append-only flat logs (`removed.log`, `edits.log`) |
 | `python/src/migrate.py` | Import `out.json` → `bup.db` |
 | `python/src/templates/`, `static/` | Jinja2 UI templates and assets |
+| `python/src/stats.py` | Daily usage-stats job (see `stats/README.md`) |
+| `gadget/BooksUp.js` | On-wiki BooksUp user script (a client of the API) |
 
 **Stack:** Python 3.11, Flask 3.x, SQLite, Jinja2, mwoauth — on a Toolforge
 Kubernetes webservice.
@@ -77,6 +80,17 @@ GET /api/v1/health           liveness
 
 Full reference: [`api/README.md`](api/README.md).
 
+## Gadget (BooksUp)
+
+**BooksUp** is an on-wiki user script — a client of the API above — that shows
+bup's suggestions while you read or edit an article and applies the ones you
+accept in the normal edit window (you review and save). It also helps you *find*
+articles that have suggestions: a random one, ones on your watchlist, or the
+full worklist.
+
+- Source: [`gadget/BooksUp.js`](gadget/BooksUp.js)
+- Install & usage: [User:GreenC/BooksUp](https://en.wikipedia.org/wiki/User:GreenC/BooksUp)
+
 ## Usage statistics
 
 Daily usage counts — chiefly the number of archive.org links added to Wikipedia
@@ -92,6 +106,7 @@ python/src/        application code, templates, static assets
   requirements.txt      Python dependencies
 api/README.md      API documentation
 stats/README.md    usage-statistics documentation
+gadget/            BooksUp on-wiki user script (BooksUp.js) + its doc (BooksUp.wiki)
 db/                SQLite db + data (gitignored; built on deploy)
 cache/             Flask filesystem cache (gitignored)
 LICENSE.md         GPL-3.0 (code) / CC-BY-SA-4.0 (docs)
