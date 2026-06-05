@@ -468,21 +468,24 @@ def _stats_users_path():
 
 
 def _normalize_user(name):
-    """Drop a 'User:' prefix and surrounding whitespace, so 'User:GreenC' and
-    'GreenC' compare equal."""
+    """Normalize a username for matching: drop a 'User:' prefix and surrounding
+    whitespace, and casefold so the comparison is case-insensitive (so
+    'User:GreenC', 'GreenC', and 'greenc' all compare equal). MediaWiki only
+    canonicalizes the first letter's case, so we match the whole name loosely."""
     name = (name or "").strip()
     if name.lower().startswith("user:"):
         name = name[5:].strip()
-    return name
+    return name.casefold()
 
 
 def stats_users():
-    """Usernames allowed to see the dashboard's 'Links added' section: the
-    hardcoded seed (GreenC) UNION the entries in stats_users.txt (newline-
-    separated; 'User:Name' or 'Name'; blank lines and #comments ignored). The
-    file is created empty (comment-only) if absent, so names can be added on
-    disk without code changes and without committing them to the repo."""
-    users = set(STATS_USERS_SEED)
+    """Usernames (casefolded, for case-insensitive matching) allowed to see the
+    dashboard's 'Links added' section: the hardcoded seed (GreenC) UNION the
+    entries in stats_users.txt (newline-separated; 'User:Name' or 'Name'; blank
+    lines and #comments ignored). The file is created empty (comment-only) if
+    absent, so names can be added on disk without code changes and without
+    committing them to the repo."""
+    users = {_normalize_user(u) for u in STATS_USERS_SEED}
     path = _stats_users_path()
     try:
         with open(path, encoding="utf-8") as f:
