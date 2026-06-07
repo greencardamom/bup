@@ -278,11 +278,12 @@ tr.bu-expand > td {
   border-top: none;
   padding: 0.9em 1.1em;
 }
-tr.bu-done { opacity: 0.55; }
-.bu-done-msg { font-size: 0.9em; white-space: nowrap; }
-.bu-difflink { font-size: 0.9em; margin-left: 0.4em; }
+/* The applied row keeps full contrast (no dimming) so the result + diff link
+   stay readable; the message conveys "done". */
+.bu-done-msg { font-style: italic; white-space: nowrap; }
 .bu-done-msg.bu-ok { color: #14866d; }
 .bu-done-msg.bu-warn { color: var(--text-subtle); }
+.bu-difflink { margin-left: 0.5em; font-style: normal; }   /* a plain blue link */
 
 .bu-loading, .bu-error { color: var(--text-subtle); font-style: italic; }
 .bu-error { color: var(--link-red); }
