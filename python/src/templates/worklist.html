@@ -3,7 +3,7 @@
 {% block title %}{{ view_title }}{% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='bup-ui.js') }}"></script>
+<script src="{{ asset('bup-ui.js') }}"></script>
 {% endblock %}
 
 {# Shared worklist table, used by Top / Random / Search (and the step-4 views).

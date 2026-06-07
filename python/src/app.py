@@ -84,6 +84,20 @@ def current_wiki():
     return wikis.resolve(request.args.get("wiki"))
 
 
+@app.context_processor
+def _asset_helper():
+    """`asset('bup-ui.css')` -> the static URL with a ?v=<mtime> cache-buster,
+    so browsers fetch the new file whenever it changes (a deploy updates the
+    file's mtime) but keep caching it otherwise."""
+    def asset(filename):
+        try:
+            v = int(os.path.getmtime(os.path.join(app.static_folder, filename)))
+        except OSError:
+            v = 0
+        return flask.url_for('static', filename=filename, v=v)
+    return {"asset": asset}
+
+
 # --- Database connection (one per request, closed on teardown) ------------
 
 def get_db():
