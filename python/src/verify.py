@@ -5,7 +5,11 @@
 # article (logging removals + inferred applications via reconcile.py). Captures
 # edits by anyone (gadget users, bots, manual editors).
 #
-# Two phases per batch, so we don't re-download every article every day:
+# Each batch also drops "dead" candidates first (phase 0): a stale candidate
+# whose newcite adds no archive.org link (newcite == oldcite) can never produce
+# an edit, so it is pruned regardless of the live article (no fetch needed).
+#
+# Then two phases per batch, so we don't re-download every article every day:
 #   1. Cheap metadata: fetch each page's current lastrevid (prop=info, tiny).
 #      If it matches the stored `revid`, the page hasn't been edited since we
 #      last checked -> skip entirely (no content fetch).
@@ -53,6 +57,7 @@ def main():
 
     after_id = 0
     seen = unchanged = checked = pruned = pages_emptied = skipped = 0
+    dead_pruned = dead_pages_emptied = 0
     while True:
         if args.max_pages and seen >= args.max_pages:
             break
@@ -61,6 +66,20 @@ def main():
             break
         after_id = rows[-1]["id"]
         seen += len(rows)
+
+        # --- Phase 0: prune dead candidates (no network; every page) ---
+        # A stale candidate whose newcite adds no archive.org link can never
+        # produce an edit, so drop it regardless of whether the article changed.
+        for rec in rows:
+            kept, dead = reconcile.prune_unviable(conn, rec)
+            if dead:
+                rec["citations"] = kept       # keep in-memory list consistent
+                dead_pruned += len(dead)
+                if not kept:
+                    dead_pages_emptied += 1
+        rows = [r for r in rows if r["citations"]]   # drop pages now emptied
+        if not rows:
+            continue
 
         # --- Phase 1: which pages changed since we last verified them? ---
         revids = wiki.fetch_revids_batch([r["page"] for r in rows], user_agent=ua)
@@ -99,8 +118,9 @@ def main():
 
     conn.close()
     print("verify: seen=%d unchanged=%d checked=%d citations_pruned=%d "
-          "pages_emptied=%d skipped=%d"
-          % (seen, unchanged, checked, pruned, pages_emptied, skipped))
+          "pages_emptied=%d dead_pruned=%d dead_pages_emptied=%d skipped=%d"
+          % (seen, unchanged, checked, pruned, pages_emptied,
+             dead_pruned, dead_pages_emptied, skipped))
     sys.stdout.flush()
 
 

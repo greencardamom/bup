@@ -15,6 +15,7 @@
 
 import db as dbmod
 import auditlog
+import bookbot
 
 
 def reconcile_page(conn, record, content, applied_oldcites=()):
@@ -43,3 +44,23 @@ def reconcile_page(conn, record, content, applied_oldcites=()):
     if gone:
         dbmod.replace_citations(conn, record["id"], open_cites)
     return open_cites, gone
+
+
+def prune_unviable(conn, record):
+    """Drop candidates that can never produce an edit: their `newcite` adds no
+    archive.org link (newcite == oldcite, or no real /details/<id> URL). Unlike
+    reconcile_page this is independent of the live article -- a dead candidate is
+    dead regardless of what the page says -- so the verifier can run it over
+    every page, including ones that never change. Logs each removal and rewrites
+    the row's counts (deleting the page if nothing viable remains). Returns
+    (kept, dropped)."""
+    kept, dropped = [], []
+    for c in record.get("citations", []):
+        (kept if bookbot.is_viable(c) else dropped).append(c)
+
+    if dropped:
+        for c in dropped:
+            auditlog.log_removed(record["page"], c.get("oldcite", ""),
+                                 c.get("newcite", ""))
+        dbmod.replace_citations(conn, record["id"], kept)
+    return kept, dropped
