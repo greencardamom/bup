@@ -115,6 +115,41 @@
 {% else %}
   <div class="bu-notice bu-empty">No usage statistics recorded yet.</div>
 {% endif %}
+
+  <h3 class="bu-dash-h3">Recent edits</h3>
+  {% if admin_edits %}
+  <table class="bu-table">
+    <thead>
+      <tr>
+        <th>Article</th>
+        <th class="num">Books</th>
+        <th class="num">Journals</th>
+        <th class="num">Refactor</th>
+        <th class="num">Total</th>
+        <th>Editor</th>
+        <th>When</th>
+        <th>Diff</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in admin_edits %}
+      <tr>
+        <td><a href="https://en.wikipedia.org/wiki/{{ e.page }}" target="_blank" rel="noopener noreferrer">{{ e.page }}</a></td>
+        <td class="num">{{ e.book }}</td>
+        <td class="num">{{ e.sim }}</td>
+        <td class="num">{{ e.ref }}</td>
+        <td class="num">{{ e.count }}</td>
+        <td><a href="https://en.wikipedia.org/wiki/Special:Contributions/{{ e.username|replace(' ', '_') }}" target="_blank" rel="noopener noreferrer">{{ e.username }}</a></td>
+        <td>{{ e.ts.strftime('%Y-%m-%d') if e.ts else '' }}</td>
+        <td>{% if e.diff_url %}<a href="{{ e.diff_url }}" target="_blank" rel="noopener noreferrer">[diff]</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="bu-notice bu-empty">No edits recorded yet.</div>
+  {% endif %}
+
 <p class="bu-formnote">Daily statistics are published as JSON Lines at
   <a href="https://tools-static.wmflabs.org/bup/" target="_blank" rel="noopener noreferrer">tools-static.wmflabs.org/bup</a>.</p>
 {% endif %}

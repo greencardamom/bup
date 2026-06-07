@@ -68,12 +68,24 @@ CREATE TABLE IF NOT EXISTS edits (
   username  VARCHAR(255) NOT NULL,
   page      VARCHAR(255) NOT NULL,
   count     INT          NOT NULL DEFAULT 0,
+  book      INT          NOT NULL DEFAULT 0,
+  sim       INT          NOT NULL DEFAULT 0,
+  ref       INT          NOT NULL DEFAULT 0,
   oldrevid  BIGINT       NULL,
   newrevid  BIGINT       NULL,
   ts        DATETIME     NOT NULL,
-  KEY idx_user_ts (username, ts)
+  KEY idx_user_ts (username, ts),
+  KEY idx_ts (ts)
 ) DEFAULT CHARSET=utf8mb4
 """
+
+# Columns added after the table first shipped (MariaDB supports IF NOT EXISTS).
+_EDITS_ALTERS = [
+    "ALTER TABLE edits ADD COLUMN IF NOT EXISTS book INT NOT NULL DEFAULT 0",
+    "ALTER TABLE edits ADD COLUMN IF NOT EXISTS sim  INT NOT NULL DEFAULT 0",
+    "ALTER TABLE edits ADD COLUMN IF NOT EXISTS ref  INT NOT NULL DEFAULT 0",
+    "ALTER TABLE edits ADD INDEX IF NOT EXISTS idx_ts (ts)",
+]
 
 
 def setup():
@@ -88,6 +100,8 @@ def setup():
             cur.execute("USE `%s`" % name)
             cur.execute(_PREFS_DDL)
             cur.execute(_EDITS_DDL)
+            for stmt in _EDITS_ALTERS:    # bring an older `edits` table up to date
+                cur.execute(stmt)
     finally:
         conn.close()
     return name
@@ -117,12 +131,14 @@ def save_prefs(conn, username, edit_summary, default_view, minor):
 
 # --- Per-edit log (personal stats) ----------------------------------------
 
-def record_edit(conn, username, page, count, oldrevid, newrevid):
+def record_edit(conn, username, page, count, oldrevid, newrevid,
+                book=0, sim=0, ref=0):
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO edits (username, page, count, oldrevid, newrevid, ts) "
-            "VALUES (%s,%s,%s,%s,%s,NOW())",
-            (username, page, int(count or 0), oldrevid or None, newrevid or None))
+            "INSERT INTO edits (username, page, count, book, sim, ref, "
+            "oldrevid, newrevid, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW())",
+            (username, page, int(count or 0), int(book or 0), int(sim or 0),
+             int(ref or 0), oldrevid or None, newrevid or None))
 
 
 def user_stats(conn, username):
@@ -136,9 +152,19 @@ def user_stats(conn, username):
 
 def recent_edits(conn, username, limit=20):
     with conn.cursor() as cur:
-        cur.execute("SELECT page, count, oldrevid, newrevid, ts FROM edits "
-                    "WHERE username=%s ORDER BY ts DESC, id DESC LIMIT %s",
-                    (username, int(limit)))
+        cur.execute("SELECT page, count, book, sim, ref, oldrevid, newrevid, ts "
+                    "FROM edits WHERE username=%s ORDER BY ts DESC, id DESC "
+                    "LIMIT %s", (username, int(limit)))
+        return list(cur.fetchall())
+
+
+def recent_edits_all(conn, limit=30):
+    """Most-recent edits across ALL users (for the admin log on the dashboard):
+    article, per-type link counts, who, when, and the revids for a diff."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT username, page, count, book, sim, ref, "
+                    "oldrevid, newrevid, ts FROM edits "
+                    "ORDER BY ts DESC, id DESC LIMIT %s", (int(limit),))
         return list(cur.fetchall())
 
 

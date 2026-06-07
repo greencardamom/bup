@@ -649,6 +649,17 @@ def dashboard():
                              for r in trecs),
             api_totals=api_totals, days=len(trecs))
 
+        # Admin edit log: recent edits across all users (article, per-type
+        # counts, who, when, diff). Best-effort.
+        try:
+            log = userdb.recent_edits_all(get_userdb(), limit=30)
+            for e in log:
+                e['diff_url'] = _diff_url(wiki_id, e.get('oldrevid'),
+                                          e.get('newrevid'))
+            ctx['admin_edits'] = log
+        except Exception:
+            ctx['admin_edits'] = []
+
     return flask.render_template('dashboard.html', **ctx)
 
 
@@ -831,10 +842,16 @@ def _apply_with_wikitext(record, username, wikitext, indices=None):
                                  applied_oldcites=present_before)
         log_line('log.txt', "%s ---- %s ---- %d ---- %s ---- Success"
                  % (page, username, count, date.today()))
-        # Per-user stats (best-effort; never block on ToolsDB).
+        # Per-user stats (best-effort; never block on ToolsDB). Tally the
+        # applied citations by type for the admin edit log.
+        applied = [c for c in selected if c.get('oldcite') in present_before]
+        bt = {"book": 0, "sim": 0, "ref": 0}
+        for c in applied:
+            bt[dbmod.citation_type(c)] = bt.get(dbmod.citation_type(c), 0) + 1
         try:
             userdb.record_edit(get_userdb(), username, page, count,
-                               edited.get("oldrevid"), edited.get("newrevid"))
+                               edited.get("oldrevid"), edited.get("newrevid"),
+                               book=bt["book"], sim=bt["sim"], ref=bt["ref"])
         except Exception:
             pass
         return {"status": "ok", "count": count, "page": page,
