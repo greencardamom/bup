@@ -149,11 +149,16 @@ def render_summary(template, count):
 
 
 def log_line(filename, line):
-    # Logs live alongside the database (the db/ directory).
+    # Logs live alongside the database (the db/ directory). These contain
+    # usernames, so the file is owner-only (0600); set on creation so a
+    # freshly-created log (e.g. on a new deploy) is private from the start.
     path = os.path.join(os.path.dirname(dbmod.db_path()), filename)
     try:
+        existed = os.path.exists(path)
         with open(path, "a") as f:
             f.write(line + "\n")
+        if not existed:
+            os.chmod(path, 0o600)
     except OSError:
         pass
 
