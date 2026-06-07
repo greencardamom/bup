@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+
+{% if saved %}
+<div class="bu-notice">Settings saved.</div>
+{% elif error %}
+<div class="bu-notice bu-notice-error">{{ error }}</div>
+{% endif %}
+
+<form class="bu-settings" method="post" action="{{ url_for('settings') }}">
+
+  <div class="bu-field">
+    <label for="bu-summary">Edit summary</label>
+    <input id="bu-summary" type="text" name="edit_summary" maxlength="500"
+           value="{{ prefs.edit_summary or '' }}"
+           placeholder="Added {count} book link(s)">
+    <p class="bu-field-help">Used when you save an edit. Use
+      <code>{count}</code> for the number of links added. Leave blank for the
+      default (“Added book”/“Added books”).</p>
+  </div>
+
+  <div class="bu-field">
+    <label for="bu-defview">Default view</label>
+    <select id="bu-defview" name="default_view">
+      <option value="">Site default ({{ view_titles[default_view_id] }})</option>
+      {% for vid, label in view_titles.items() %}
+      <option value="{{ vid }}"{{ ' selected' if prefs.default_view == vid else '' }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <p class="bu-field-help">The view shown when you open BooksUp.</p>
+  </div>
+
+  <div class="bu-field">
+    <label class="bu-check">
+      <input type="checkbox" name="minor" value="1"{{ ' checked' if prefs.minor else '' }}>
+      Mark my edits as minor
+    </label>
+    <p class="bu-field-help">Off by default.</p>
+  </div>
+
+  <input class="bu-btn bu-btn-primary" type="submit" value="Save settings">
+</form>
+
+{% endblock %}

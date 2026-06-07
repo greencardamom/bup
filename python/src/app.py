@@ -32,6 +32,7 @@ from requests_toolbelt.utils import dump
 
 from common import cache  # see common.py
 import db as dbmod
+import userdb
 import bookbot
 import wiki
 import wikis
@@ -98,6 +99,55 @@ def close_db(exc):
         conn.close()
 
 
+# --- ToolsDB connection for per-user data (best-effort; never fatal) -------
+
+def get_userdb():
+    """Per-request ToolsDB connection. May raise if ToolsDB is unreachable;
+    callers must treat per-user data as best-effort (defaults on failure)."""
+    if "userdb" not in flask.g:
+        flask.g.userdb = userdb.connect()
+    return flask.g.userdb
+
+
+@app.teardown_appcontext
+def close_userdb(exc):
+    conn = flask.g.pop("userdb", None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+DEFAULT_PREFS = {"edit_summary": None, "default_view": None, "minor": 0}
+
+
+def current_prefs():
+    """The logged-in user's prefs, cached in the session so the hot paths don't
+    hit ToolsDB every request. Falls back to defaults (uncached, so it retries)
+    if ToolsDB is unavailable."""
+    cached = flask.session.get("prefs")
+    if cached is not None:
+        return cached
+    prefs = dict(DEFAULT_PREFS)
+    try:
+        row = userdb.get_prefs(get_userdb(), flask.session["username"])
+        if row:
+            prefs.update({k: row.get(k) for k in DEFAULT_PREFS})
+        flask.session["prefs"] = prefs        # cache only on a successful load
+    except Exception:
+        pass
+    return prefs
+
+
+def render_summary(template, count):
+    """The edit summary for an apply: the user's template with {count}
+    substituted, or the default pluralization when unset."""
+    if template:
+        return template.replace("{count}", str(count))
+    return "Added book" if count == 1 else "Added books"
+
+
 def log_line(filename, line):
     # Logs live alongside the database (the db/ directory).
     path = os.path.join(os.path.dirname(dbmod.db_path()), filename)
@@ -123,7 +173,8 @@ def nocache(view):
 
 
 # from: https://github.com/dissemin/oabot/blob/master/src/app.py
-def edit_wiki_page(page_name, content, access_token, summary=None, bot=False):
+def edit_wiki_page(page_name, content, access_token, summary=None, bot=False,
+                   minor=False):
     auth = OAuth1(
         app.config['CONSUMER_KEY'],
         app.config['CONSUMER_SECRET'],
@@ -150,6 +201,7 @@ def edit_wiki_page(page_name, content, access_token, summary=None, bot=False):
     }
     if bot:
         data['bot'] = '1'
+    data['minor' if minor else 'notminor'] = '1'
 
     r = requests.post('https://en.wikipedia.org/w/api.php', data=data, auth=auth)
 
@@ -356,7 +408,10 @@ def main():
             'index.html', username=username, greeting=greeting)
 
     wiki_id = current_wiki()
-    view = request.args.get('view', DEFAULT_VIEW)
+    # No explicit ?view= -> the user's saved default, else the site default.
+    view = request.args.get('view')
+    if not view:
+        view = current_prefs().get('default_view') or DEFAULT_VIEW
     if view not in VIEW_TITLES:
         view = DEFAULT_VIEW
 
@@ -539,6 +594,19 @@ def dashboard():
         has_data=wikis.has_data(wiki_id), corpus=corpus,
         can_view_stats=can_view_stats)
 
+    # "Your activity": the logged-in user's own stats (best-effort; ToolsDB).
+    try:
+        udb = get_userdb()
+        ctx['ustats'] = userdb.user_stats(udb, username)
+        uedits = userdb.recent_edits(udb, username, limit=20)
+        for e in uedits:
+            e['diff_url'] = _diff_url(wiki_id, e.get('oldrevid'),
+                                      e.get('newrevid'))
+        ctx['uedits'] = uedits
+    except Exception:
+        ctx['ustats'] = None
+        ctx['uedits'] = []
+
     if can_view_stats:
         recs = _read_stats_records()
         years = sorted({r["date"][:4] for r in recs if r.get("date")})
@@ -580,6 +648,47 @@ def dashboard():
             api_totals=api_totals, days=len(trecs))
 
     return flask.render_template('dashboard.html', **ctx)
+
+
+# --- Settings (per-user prefs in ToolsDB) ---------------------------------
+
+@app.route('/settings', methods=['GET', 'POST'])
+@nocache
+def settings():
+    """Per-user preferences: custom edit summary ({count} placeholder), default
+    landing view, and a minor-edit flag. Stored in ToolsDB."""
+    username = flask.session.get('username', None)
+    if not username:
+        return flask.render_template(
+            'index.html', username=username, greeting=app.config['GREETING'])
+
+    saved = error = None
+    if request.method == 'POST':
+        edit_summary = (request.form.get('edit_summary') or '').strip()[:500]
+        default_view = request.form.get('default_view') or ''
+        if default_view not in VIEW_TITLES:
+            default_view = ''
+        minor = bool(request.form.get('minor'))
+        try:
+            userdb.save_prefs(get_userdb(), username, edit_summary,
+                              default_view, minor)
+            # Keep the session cache in step so the change takes effect at once.
+            flask.session['prefs'] = {
+                "edit_summary": edit_summary or None,
+                "default_view": default_view or None,
+                "minor": 1 if minor else 0}
+            saved = True
+        except Exception:
+            error = ("Could not save settings — the preferences database is "
+                     "unavailable. Please try again.")
+
+    wiki_id = current_wiki()
+    return flask.render_template(
+        'settings.html', username=username, view='settings', wiki=wiki_id,
+        wiki_label=wikis.get(wiki_id)['label'], wikis=wikis.selector_list(),
+        has_data=wikis.has_data(wiki_id), prefs=current_prefs(),
+        view_titles=VIEW_TITLES, default_view_id=DEFAULT_VIEW,
+        saved=saved, error=error)
 
 
 # --- Inline preview fragment (for the in-row expand in the worklist) ------
@@ -708,9 +817,11 @@ def _apply_with_wikitext(record, username, wikitext, indices=None):
         return {"status": "none", "count": 0, "page": page}
 
     access_token = flask.session.get('access_token', None)
-    summary = "Added book" if count == 1 else "Added books"
+    prefs = current_prefs()
+    summary = render_summary(prefs.get("edit_summary"), count)
 
-    edited = edit_wiki_page(page, new_content, access_token, summary)
+    edited = edit_wiki_page(page, new_content, access_token, summary,
+                            minor=bool(prefs.get("minor")))
     if edited:
         # Citations bup just applied (present before, now replaced) -> bupUI;
         # reconcile against the content we posted (prunes them, drops the page).
@@ -718,6 +829,12 @@ def _apply_with_wikitext(record, username, wikitext, indices=None):
                                  applied_oldcites=present_before)
         log_line('log.txt', "%s ---- %s ---- %d ---- %s ---- Success"
                  % (page, username, count, date.today()))
+        # Per-user stats (best-effort; never block on ToolsDB).
+        try:
+            userdb.record_edit(get_userdb(), username, page, count,
+                               edited.get("oldrevid"), edited.get("newrevid"))
+        except Exception:
+            pass
         return {"status": "ok", "count": count, "page": page,
                 "oldrevid": edited.get("oldrevid"),
                 "newrevid": edited.get("newrevid")}

@@ -237,6 +237,35 @@ table.bu-table td.dim { color: var(--text-subtle); }
   border-radius: 2px;
 }
 .bu-notice.bu-empty { color: var(--text-subtle); }
+.bu-notice-error { border-left-color: var(--link-red); }
+
+/* --- Settings form ----------------------------------------------------- */
+
+.bu-settings { max-width: 38em; margin-top: 0.5em; }
+.bu-field { margin-bottom: 1.25em; }
+.bu-field > label { display: block; font-weight: bold; margin-bottom: 0.3em; }
+.bu-field input[type="text"] {
+  width: 100%;
+  font-size: 1em;
+  padding: 0.35em 0.5em;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+.bu-field select {
+  font-size: 1em;
+  padding: 0.3em 0.4em;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg);
+}
+.bu-field-help { font-size: 0.85em; color: var(--text-subtle); margin: 0.3em 0 0; }
+.bu-field-help code {
+  background: var(--bg-panel-2);
+  padding: 0 0.3em;
+  border-radius: 2px;
+}
+.bu-check { font-weight: normal !important; }
+.bu-check input { margin-right: 0.4em; }
 
 mark.red { color: var(--link-red); background: none; }
 

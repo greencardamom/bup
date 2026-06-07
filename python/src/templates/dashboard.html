@@ -18,6 +18,34 @@
 <div class="bu-notice bu-empty">No worklist for {{ wiki_label }} yet.</div>
 {% endif %}
 
+{# --- Your activity: the logged-in user's own stats (everyone) --------- #}
+<h2 class="bu-dash-h">Your activity</h2>
+{% if ustats and ustats.edits %}
+<div class="bu-cards">
+  <div class="bu-card"><div class="bu-card-n">{{ "{:,}".format(ustats.links or 0) }}</div><div class="bu-card-l">links added</div></div>
+  <div class="bu-card"><div class="bu-card-n">{{ "{:,}".format(ustats.edits or 0) }}</div><div class="bu-card-l">edits</div></div>
+  <div class="bu-card"><div class="bu-card-n">{{ ustats.last_active.strftime('%Y-%m-%d') if ustats.last_active else '—' }}</div><div class="bu-card-l">last active</div></div>
+</div>
+{% if uedits %}
+<h3 class="bu-dash-h3">Recent edits</h3>
+<table class="bu-table bu-dash-api">
+  <thead><tr><th>Article</th><th class="num">Links</th><th>When</th><th>Diff</th></tr></thead>
+  <tbody>
+    {% for e in uedits %}
+    <tr>
+      <td><a href="https://en.wikipedia.org/wiki/{{ e.page }}" target="_blank" rel="noopener noreferrer">{{ e.page }}</a></td>
+      <td class="num">{{ e.count }}</td>
+      <td>{{ e.ts.strftime('%Y-%m-%d') if e.ts else '' }}</td>
+      <td>{% if e.diff_url %}<a href="{{ e.diff_url }}" target="_blank" rel="noopener noreferrer">[diff]</a>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% else %}
+<div class="bu-notice bu-empty">You haven't added any links yet — pick an article and hit Run.</div>
+{% endif %}
+
 {# --- Links added: only for users in stats_users() --------------------- #}
 {% if can_view_stats %}
 <h2 class="bu-dash-h">Links added via the tool</h2>

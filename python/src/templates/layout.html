@@ -47,6 +47,7 @@
     {% if username %}
     <div class="bu-userbox">
       <div class="bu-username">{{ username }}</div>
+      <a href="{{ url_for('settings') }}"{{ ' class="active"' if view == 'settings' else '' }}>Settings</a> ·
       <a href="{{ url_for('about') }}">About</a> ·
       <a href="{{ url_for('logout') }}">Log out</a>
     </div>
