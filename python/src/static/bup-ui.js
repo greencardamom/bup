@@ -130,8 +130,9 @@
     }
   }
 
-  // Replace the data row's action cell with a result message and dim the row.
-  function finishRow(dataRow, ex, msg, cls) {
+  // Replace the data row's action cell with a result message (+ optional [diff]
+  // link to the edit) and dim the row.
+  function finishRow(dataRow, ex, msg, cls, diffUrl) {
     if (ex) ex.remove();
     if (!dataRow) return;
     var run = dataRow.querySelector(".bu-run");
@@ -139,8 +140,12 @@
     dataRow.classList.add("bu-done");
     var cell = dataRow.lastElementChild;
     if (cell) {
-      cell.innerHTML = '<span class="bu-done-msg ' + (cls || "") + '">' +
-                       msg + "</span>";
+      var html = '<span class="bu-done-msg ' + (cls || "") + '">' + msg + "</span>";
+      if (diffUrl) {
+        html += ' <a class="bu-difflink" href="' + diffUrl +
+                '" target="_blank" rel="noopener noreferrer">[diff]</a>';
+      }
+      cell.innerHTML = html;
     }
   }
 
@@ -199,7 +204,7 @@
         if (res.status === "ok") {
           var n = res.count;
           finishRow(dataRow, ex, "✓ Added " + n + " link" + (n === 1 ? "" : "s"),
-                    "bu-ok");
+                    "bu-ok", res.diff_url);
         } else if (res.status === "none") {
           finishRow(dataRow, ex, "No changes remained — removed", "bu-warn");
         } else {

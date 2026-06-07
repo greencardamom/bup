@@ -157,8 +157,18 @@ def edit_wiki_page(page_name, content, access_token, summary=None, bot=False):
         ddata = dump.dump_all(r)
         with open('/data/project/bup/debug-post.txt', 'w') as f:
             print(ddata.decode('utf-8'))
-        return False
-    return True
+        return None
+    # On success the API returns {"edit": {"result": "Success", "oldrevid": O,
+    # "newrevid": N, ...}}. Return both revids (truthy dict) so callers can link
+    # the exact old->new diff; None on any non-success (callers treat as failure).
+    try:
+        edit = r.json().get('edit', {})
+    except ValueError:
+        return None
+    if edit.get('result') == 'Success':
+        return {'oldrevid': int(edit.get('oldrevid') or 0),
+                'newrevid': int(edit.get('newrevid') or 0)}
+    return None
 
 
 def _user_agent():
@@ -630,11 +640,28 @@ def apply(id):
     if isinstance(data, dict) and isinstance(data.get("indices"), list):
         indices = [i for i in data["indices"] if isinstance(i, int)]
 
+    wiki_id = current_wiki()
+
     def finish(wikitext):
         res = _apply_with_wikitext(record, username, wikitext, indices)
+        if res.get("status") == "ok":
+            res["diff_url"] = _diff_url(wiki_id, res.get("oldrevid"),
+                                        res.get("newrevid"))
         return ("result", res)
 
-    return _stream_fetch_then(record['page'], current_wiki(), finish)
+    return _stream_fetch_then(record['page'], wiki_id, finish)
+
+
+def _diff_url(wiki_id, oldrevid, newrevid):
+    """Wikipedia URL showing the exact old->new diff for the edit just made.
+    Uses Special:Diff/<old>/<new> when both revids are known, else falls back to
+    Special:Diff/<new> (which still renders the edit's diff vs its parent)."""
+    if not newrevid:
+        return None
+    host = wikis.api_url(wiki_id).split("/w/api.php")[0]   # e.g. https://en.wikipedia.org
+    if oldrevid:
+        return "%s/wiki/Special:Diff/%d/%d" % (host, oldrevid, newrevid)
+    return "%s/wiki/Special:Diff/%d" % (host, newrevid)
 
 
 # --- Apply implementation -------------------------------------------------
@@ -683,14 +710,17 @@ def _apply_with_wikitext(record, username, wikitext, indices=None):
     access_token = flask.session.get('access_token', None)
     summary = "Added book" if count == 1 else "Added books"
 
-    if edit_wiki_page(page, new_content, access_token, summary):
+    edited = edit_wiki_page(page, new_content, access_token, summary)
+    if edited:
         # Citations bup just applied (present before, now replaced) -> bupUI;
         # reconcile against the content we posted (prunes them, drops the page).
         reconcile.reconcile_page(get_db(), record, new_content,
                                  applied_oldcites=present_before)
         log_line('log.txt', "%s ---- %s ---- %d ---- %s ---- Success"
                  % (page, username, count, date.today()))
-        return {"status": "ok", "count": count, "page": page}
+        return {"status": "ok", "count": count, "page": page,
+                "oldrevid": edited.get("oldrevid"),
+                "newrevid": edited.get("newrevid")}
 
     log_line('errorlog.txt', "%s ---- %s ---- %d ---- %s ---- Error posting"
              % (page, username, count, date.today()))

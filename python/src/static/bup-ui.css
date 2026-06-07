@@ -251,6 +251,7 @@ tr.bu-expand > td {
 }
 tr.bu-done { opacity: 0.55; }
 .bu-done-msg { font-size: 0.9em; white-space: nowrap; }
+.bu-difflink { font-size: 0.9em; margin-left: 0.4em; }
 .bu-done-msg.bu-ok { color: #14866d; }
 .bu-done-msg.bu-warn { color: var(--text-subtle); }
 
