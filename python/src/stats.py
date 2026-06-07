@@ -131,13 +131,40 @@ def main():
     }
     os.makedirs(STATIC_DIR, exist_ok=True)
     out = os.path.join(STATIC_DIR, "booksup-stats-%d.jsonl" % d.year)
-    with open(out, "a", encoding="utf-8") as f:
-        f.write(json.dumps(rec) + "\n")
+    write_record(out, rec)
+    print(json.dumps(rec))
+
+
+def write_record(out, rec):
+    """Write `rec` as the line for its date, keeping the file to ONE line per
+    date, date-sorted. Idempotent: re-running a day replaces that day's line
+    instead of appending a duplicate (and a single run also de-dups/sorts any
+    pre-existing duplicate lines). Atomic via temp-file rename."""
+    by_date = {}
+    if os.path.exists(out):
+        with open(out, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                d = r.get("date")
+                if d:
+                    by_date[d] = r
+    by_date[rec["date"]] = rec        # new record wins for its date
+
+    tmp = out + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        for d in sorted(by_date):
+            f.write(json.dumps(by_date[d]) + "\n")
+    os.replace(tmp, out)              # atomic
     try:
-        os.chmod(out, 0o644)   # readable by the tools-static web server
+        os.chmod(out, 0o644)          # readable by the tools-static web server
     except OSError:
         pass
-    print(json.dumps(rec))
 
 
 if __name__ == "__main__":

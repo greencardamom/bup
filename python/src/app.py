@@ -509,7 +509,7 @@ def _read_stats_records():
     """All daily usage records across every year file, oldest first. Missing
     files -> []. Each record: {date, urls_added, webtool:{edits,urls},
     gadget:{edits,urls}, api:{page,random,worklist,pages}}."""
-    recs = []
+    by_date = {}
     for path in sorted(glob.glob(os.path.join(_stats_dir(),
                                               "booksup-stats-*.jsonl"))):
         try:
@@ -519,13 +519,15 @@ def _read_stats_records():
                     if not line:
                         continue
                     try:
-                        recs.append(json.loads(line))
+                        r = json.loads(line)
                     except ValueError:
-                        pass
+                        continue
+                    d = r.get("date")
+                    if d:
+                        by_date[d] = r   # one record per date; last line wins
         except OSError:
             pass
-    recs.sort(key=lambda r: r.get("date", ""))
-    return recs
+    return [by_date[d] for d in sorted(by_date)]
 
 
 def _stats_users_path():
