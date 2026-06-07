@@ -76,7 +76,11 @@ def build_user_agent(contact, username=None):
 
 INITIAL_MAXLAG = 10        # replication-lag tolerance on the first try
 MAXLAG_STEP = 5            # ... grows by this each retry (linear, uncapped)
-INTERACTIVE_RETRIES = 8    # foreground reads (preview/apply, intersection views)
+# Foreground reads (preview/apply, intersection views) keep a SMALL budget: a
+# web request holds one of the few uWSGI workers for its whole duration, so it
+# must fail fast (<=3 tries, worst-case ~60s) rather than back off for minutes
+# -- the user can just click again. The background verifier can afford to wait.
+INTERACTIVE_RETRIES = 2
 BATCH_RETRIES = 20         # background verifier (matches the awk bot's wiki tries)
 
 
