@@ -259,6 +259,7 @@ tr.bu-done { opacity: 0.55; }
 
 .bu-preview-head { margin: 0 0 0.75em; }
 .bu-preview .bu-empty { color: var(--text-subtle); margin: 0; }
+.bu-nomatch { color: var(--text-subtle); font-style: italic; margin: 0; }
 
 /* Scrollable list of proposed changes (mirrors the BooksUp gadget panel). */
 .bu-cite-list {

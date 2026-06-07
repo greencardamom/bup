@@ -26,6 +26,24 @@ def archive_url(citation):
     return "https://archive.org/details/" + citation.get("iaid", "")
 
 
+# A real archive.org item URL: /details/<id> with a non-empty id (not the bare
+# prefix). Used to tell a genuine match from a stale/dead candidate.
+_IA_DETAILS = re.compile(r"archive\.org/details/[^\s/|}\]]")
+
+
+def is_viable(citation):
+    """True if the candidate actually adds an archive.org link: the new cite
+    must differ from the old AND contain a real /details/<id> URL.
+
+    Guards against stale candidates whose `newcite` equals `oldcite` (the
+    matched item no longer resolves, for whatever reason) -- those would
+    otherwise render a preview whose 'before' and 'after' are identical with no
+    link, instead of being recognized as 'no match available'."""
+    old = citation.get("oldcite", "")
+    new = citation.get("newcite", "")
+    return bool(new) and new != old and bool(_IA_DETAILS.search(new))
+
+
 def colorcite(cite, iaurl):
     """Wrap the archive.org URL(s) in the new cite with red <mark> highlight.
 
@@ -62,7 +80,7 @@ def preview_rows(record, wikitext, showexpired=False):
     citations = record.get("citations", [])
     numofcites = len(citations)
     rows = []
-    expired = 0
+    unavailable = 0     # expired (oldcite gone) OR non-viable (adds no link)
     for idx, c in enumerate(citations):
         oldcite = c.get("oldcite", "")
         newcite = c.get("newcite", "")
@@ -78,12 +96,19 @@ def preview_rows(record, wikitext, showexpired=False):
                                     'visible in article. Deleted? Modified?'
                                     '</mark>',
                 })
-                expired += 1
+                unavailable += 1
                 continue
         else:
             if not present:
-                expired += 1
+                unavailable += 1
                 continue
+
+        # Present, but the candidate no longer adds an archive.org link (its
+        # 'after' == 'before'): a dead match -> drop it so the preview shows
+        # only working citations.
+        if not is_viable(c):
+            unavailable += 1
+            continue
 
         rows.append({
             "i": idx,
@@ -91,7 +116,7 @@ def preview_rows(record, wikitext, showexpired=False):
             "newcite_html": colorcite(newcite, iaurl),
         })
 
-    available = numofcites - expired
+    available = numofcites - unavailable
     return rows, numofcites, available
 
 
