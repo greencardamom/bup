@@ -14,16 +14,14 @@
 import os
 import glob
 import json
-import queue
 import random
 import string
-import threading
 from datetime import date
 from email.utils import formatdate
 from functools import wraps, update_wrapper
 
 import flask
-from flask import Flask, request, make_response, Response, stream_with_context
+from flask import Flask, request, make_response
 import yaml
 import requests
 import mwoauth
@@ -267,68 +265,6 @@ def read_wikitext(page, wiki_id=wikis.DEFAULT_WIKI):
     return wiki.fetch_wikitext(page, auth=_oauth_auth(),
                                user_agent=_user_agent(),
                                api_url=wikis.api_url(wiki_id))
-
-
-# --- Server-Sent-Events streaming for the inline preview/apply ------------
-#
-# The retry-prone bit is the live wiki read (wiki._api_call backs off, possibly
-# for tens of seconds). To show the user it's working — not hung — we stream:
-# the read runs in a worker thread reporting each retry via a queue, while a
-# request-thread generator emits SSE 'retry' events and, once the text arrives,
-# does the DB/render/edit work and emits the final 'result' (or 'error') event.
-# Keeping the DB/render in the request thread avoids cross-thread SQLite / Flask
-# context issues (the worker only touches the network, with no Flask access).
-
-def _sse_event(name, data):
-    return "event: %s\ndata: %s\n\n" % (name, json.dumps(data))
-
-
-def _stream_fetch_then(page, wiki_id, finish):
-    """Stream SSE while fetching `page`'s wikitext, then call finish(wikitext)
-    in the request thread to produce the final (event_name, data) to emit.
-    finish() may use the DB, render templates, and post edits."""
-    auth = _oauth_auth()
-    user_agent = _user_agent()
-    api_url = wikis.api_url(wiki_id)
-    q = queue.Queue()
-    box = {}
-
-    def on_retry(attempt, wait, reason):
-        q.put(("retry", {"attempt": attempt, "wait": int(round(wait)),
-                         "reason": reason}))
-
-    def worker():
-        try:
-            box["text"] = wiki.fetch_wikitext(
-                page, auth=auth, user_agent=user_agent, api_url=api_url,
-                on_retry=on_retry)
-        except Exception as e:        # pragma: no cover - defensive
-            box["err"] = str(e)
-        q.put(("__done__", None))
-
-    threading.Thread(target=worker, daemon=True).start()
-
-    @stream_with_context
-    def gen():
-        while True:
-            name, data = q.get()
-            if name == "__done__":
-                break
-            yield _sse_event(name, data)
-        if "err" in box:
-            yield _sse_event("error", {"message": box["err"]})
-            return
-        try:
-            event, data = finish(box.get("text", ""))
-        except Exception as e:        # pragma: no cover - defensive
-            yield _sse_event("error", {"message": str(e)})
-            return
-        yield _sse_event(event, data)
-
-    resp = Response(gen(), mimetype="text/event-stream")
-    resp.headers["X-Accel-Buffering"] = "no"   # don't let a proxy buffer SSE
-    resp.headers["Cache-Control"] = "no-cache"
-    return resp
 
 
 # --- Public / auth routes (unchanged behavior) ----------------------------
@@ -729,10 +665,10 @@ def settings():
 @app.route('/preview-fragment/<int:id>')
 @nocache
 def preview_fragment(id):
-    """Stream the proposed-change diff for one worklist row as an HTML fragment
-    (no layout), for the inline expand. SSE: 'retry' events while the live read
-    backs off, then a 'result' event whose data is {"html": ...}. Non-streaming
-    early returns (not-logged-in / missing row) are handled directly."""
+    """Return the proposed-change diff for one worklist row as an HTML fragment
+    (no layout), for the inline expand. Synchronous: the live read may back off
+    on 429s but does NOT use a background thread (Toolforge's uWSGI runs without
+    thread support, so threads can wedge a worker)."""
     username = flask.session.get('username', None)
     if not username:
         return ("Not logged in.", 403)
@@ -743,18 +679,14 @@ def preview_fragment(id):
             'preview_fragment.html', available=0, page="", rows=[], page_id=id)
 
     wiki_id = current_wiki()
-
-    def finish(wikitext):
-        rows, numofcites, available = bookbot.preview_rows(record, wikitext)
-        if available == 0:
-            # No oldcites remain -> prune (drops the page), same as /preview.
-            reconcile.reconcile_page(get_db(), record, wikitext)
-        html = flask.render_template(
-            'preview_fragment.html', available=available, page=record['page'],
-            rows=rows, page_id=id, wiki=wiki_id)
-        return ("result", {"html": html})
-
-    return _stream_fetch_then(record['page'], wiki_id, finish)
+    wikitext = read_wikitext(record['page'], wiki_id)
+    rows, numofcites, available = bookbot.preview_rows(record, wikitext)
+    if available == 0:
+        # No oldcites remain -> prune (drops the page), same as /preview.
+        reconcile.reconcile_page(get_db(), record, wikitext)
+    return flask.render_template(
+        'preview_fragment.html', available=available, page=record['page'],
+        rows=rows, page_id=id, wiki=wiki_id)
 
 
 # --- Apply (JSON, for the inline Confirm & save) --------------------------
@@ -762,9 +694,9 @@ def preview_fragment(id):
 @app.route('/apply/<int:id>', methods=['POST'])
 @nocache
 def apply(id):
-    """Apply a worklist row's edits, streaming SSE 'retry' events during the
-    live read and a final 'result' event with the JSON status dict (for
-    bup-ui.js). Shares _apply_with_wikitext with the HTML run-bot route."""
+    """Apply a worklist row's edits and return JSON (for bup-ui.js).
+    Synchronous (no background thread); reads the live article, applies the
+    selected citations, and returns the status dict + diff URL."""
     username = flask.session.get('username', None)
     if not username:
         return flask.jsonify({"status": "error",
@@ -783,15 +715,12 @@ def apply(id):
         indices = [i for i in data["indices"] if isinstance(i, int)]
 
     wiki_id = current_wiki()
-
-    def finish(wikitext):
-        res = _apply_with_wikitext(record, username, wikitext, indices)
-        if res.get("status") == "ok":
-            res["diff_url"] = _diff_url(wiki_id, res.get("oldrevid"),
-                                        res.get("newrevid"))
-        return ("result", res)
-
-    return _stream_fetch_then(record['page'], wiki_id, finish)
+    wikitext = read_wikitext(record['page'], wiki_id)
+    res = _apply_with_wikitext(record, username, wikitext, indices)
+    if res.get("status") == "ok":
+        res["diff_url"] = _diff_url(wiki_id, res.get("oldrevid"),
+                                    res.get("newrevid"))
+    return flask.jsonify(res)
 
 
 def _diff_url(wiki_id, oldrevid, newrevid):
