@@ -574,6 +574,7 @@ def stats_users():
                 f.write("# Usernames allowed to view the dashboard's 'Links "
                         "added' section.\n# One per line; 'User:Name' or "
                         "'Name'. GreenC is always allowed.\n")
+            os.chmod(path, 0o600)   # owner-only (it's an access allowlist)
         except OSError:
             pass
     return users
