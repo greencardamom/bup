@@ -35,7 +35,8 @@ def colorcite(cite, iaurl):
     /page/<n> URL get highlighted; the __HIDE__ sentinel keeps the bare-URL
     replacement from corrupting the /page/ URL's prefix.
     """
-    mark = '<mark class="red"><a href="%s">%s</a></mark>'
+    mark = ('<mark class="red"><a href="%s" target="_blank" '
+            'rel="noopener noreferrer">%s</a></mark>')
     if "/page/" in iaurl:
         cite = cite.replace(iaurl, "__HIDE__")
         plain = re.sub(r"/page/.*$", "", iaurl)
