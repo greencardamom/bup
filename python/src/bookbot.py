@@ -10,8 +10,12 @@
 import re
 
 # Matches the archive.org "/details/<id>/page/<n>" URL inside a newcite.
-# Ported from the awk regex: https://archive.org/details/[^/]*/page/[^ ]*[^ ]
-_IA_PAGE_URL = re.compile(r"https://archive\.org/details/[^/]*/page/[^ ]*[^ ]")
+# The URL terminates at a citation-template/wikitext boundary -- a pipe, brace,
+# bracket, angle bracket, quote, or whitespace -- NOT just a space (the awk
+# original used [^ ], which bled past `|journal=...|date=August` up to the first
+# real space). The page segment may contain slashes (e.g. /page/584/mode/2up).
+_IA_PAGE_URL = re.compile(
+    r'https://archive\.org/details/[^/\s|]+/page/[^\s|}\]<>"]+')
 
 
 def archive_url(citation):
