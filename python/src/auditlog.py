@@ -30,10 +30,15 @@ def _logdir():
 
 
 def _append(filename, fields):
+    # These logs expose which articles/citations were touched, so keep them
+    # owner-only (0600); set on creation so a freshly-created log is private.
     path = os.path.join(_logdir(), filename)
     try:
+        existed = os.path.exists(path)
         with open(path, "a", encoding="utf-8") as f:
             f.write(SEP.join(fields) + "\n")
+        if not existed:
+            os.chmod(path, 0o600)
     except OSError:
         pass
 
