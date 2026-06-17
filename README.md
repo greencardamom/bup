@@ -156,6 +156,22 @@ toolforge jobs run verify --image python3.11 --schedule "@daily" \
   --command ".../venv/bin/python .../src/verify.py" --mount all
 ```
 
+A second job backs up the database daily (online, integrity-checked snapshot
+into `$HOME/backups`, newest 7 kept):
+
+```bash
+toolforge jobs run backup --image python3.11 --schedule "@daily" \
+  --command ".../venv/bin/python .../src/backup.py" --mount all
+```
+
+**SQLite on NFS:** `bup.db` lives on Toolforge NFS and is written from two
+hosts — the webservice pod and the `verify` job pod. It therefore runs in
+rollback-journal mode (`db.connect()`), **not** WAL: WAL's shared-memory index
+is not coherent across hosts and will corrupt the file (it did once). The
+small, immediately-committed writes plus `busy_timeout` keep cross-host
+contention safe. For heavier concurrency the durable fix is to move this table
+to ToolsDB (MariaDB), which the tool already uses for user prefs (`userdb.py`).
+
 ## Data source
 
 The citation→archive.org matching is produced by a separate offline pipeline

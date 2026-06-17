@@ -48,10 +48,24 @@ CREATE INDEX IF NOT EXISTS idx_pages_page ON pages(page);
 
 
 def connect(path=None):
-    """Open a connection with sane defaults (WAL, row factory, FK on)."""
-    conn = sqlite3.connect(path or db_path())
+    """Open a connection with NFS-safe settings.
+
+    journal_mode is deliberately NOT WAL. bup.db lives on Toolforge NFS and is
+    opened from two different hosts -- the webservice pod and the daily verify
+    job. WAL keeps its index in a memory-mapped -shm file that is NOT coherent
+    across hosts (SQLite does not support WAL on a network filesystem), so two
+    hosts writing in WAL mode corrupt the file -- which is exactly what happened
+    once. Rollback journal (DELETE) uses whole-file POSIX locks that NFS lockd
+    serializes; busy_timeout makes a blocked reader/writer wait for the lock
+    instead of erroring. Every write here is a tiny, single-statement,
+    immediately-committed transaction (see replace_citations / set_revid), so
+    the lock is held only momentarily and contention stays cheap.
+    """
+    conn = sqlite3.connect(path or db_path(), timeout=30)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA journal_mode=DELETE")   # NOT WAL -- unsafe on NFS/multi-host
+    conn.execute("PRAGMA synchronous=FULL")      # durable across a crash mid-write
+    conn.execute("PRAGMA busy_timeout=30000")    # wait out the other host's lock
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
