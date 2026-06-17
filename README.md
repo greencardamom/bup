@@ -31,8 +31,9 @@ review and apply them, and serves them over an API.
    `{oldcite, newcite, iaid, meta}` candidates. `oldcite` is the *exact* current
    citation wikitext; `newcite` is the same citation with the archive.org link
    added.
-2. **Import** — `migrate.py` loads `out.json` into a SQLite database
-   (`db/bup.db`, a single `pages` table = the worklist).
+2. **Import** — `migrate.py` loads `out.json` into the worklist: a single
+   `pages` table in **ToolsDB** (the shared MariaDB on Toolforge). A SQLite
+   file backend is also selectable — see *Storage backend* below.
 3. **Review & apply** — a Wikipedia editor logs in via OAuth, previews the
    proposed change for an article, and runs the bot. The edit is made through
    the **logged-in user's** OAuth credentials, so it is attributed to them.
@@ -53,20 +54,20 @@ review and apply them, and serves them over an API.
 |------|------|
 | `python/src/app.py` | Flask app: routes, OAuth login, views, inline preview/apply (SSE), dashboard, edits |
 | `python/src/api.py` | Read-only JSON API blueprint (`/api/v1`) |
-| `python/src/db.py` | SQLite data layer (the `pages` worklist) |
+| `python/src/db.py` | Data layer for the `pages` worklist — ToolsDB (MariaDB) or SQLite, selected by `BUP_DB_BACKEND` |
 | `python/src/wikis.py` | Wiki registry (multi-wiki-ready; only enwiki populated) |
 | `python/src/bookbot.py` | Core citation logic (literal match, preview, apply) |
 | `python/src/wiki.py` | MediaWiki API: signed reads, batch readers, list queries (watchlist/category/backlinks), escalating backoff |
 | `python/src/reconcile.py` | Prune resolved citations + write audit logs |
 | `python/src/verify.py` | Daily reconciler job (batched live-article re-check) |
 | `python/src/auditlog.py` | Append-only flat logs (`removed.log`, `edits.log`) |
-| `python/src/migrate.py` | Import `out.json` → `bup.db` |
+| `python/src/migrate.py` | Load the worklist: rebuild from `out.json`, or copy SQLite→ToolsDB preserving ids |
 | `python/src/templates/`, `static/` | Jinja2 templates + hand-rolled Vector-style CSS/JS (`bup-ui.css`, `bup-ui.js`) |
 | `python/src/stats.py` | Daily usage-stats job (see `stats/README.md`) |
 | `gadget/BooksUp.js` | On-wiki BooksUp user script (a client of the API) |
 
-**Stack:** Python 3.11, Flask 3.x, SQLite, Jinja2, mwoauth — on a Toolforge
-Kubernetes webservice.
+**Stack:** Python 3.11, Flask 3.x, ToolsDB (MariaDB) / SQLite, Jinja2, mwoauth —
+on a Toolforge Kubernetes webservice.
 
 ## Web interface
 
@@ -131,7 +132,7 @@ python/src/        application code, templates, static assets
 api/README.md      API documentation
 stats/README.md    usage-statistics documentation
 gadget/            BooksUp on-wiki user script (BooksUp.js) + its doc (BooksUp.wiki)
-db/                SQLite db + data (gitignored; built on deploy)
+db/                worklist data — out.json, logs, SQLite fallback db (gitignored)
 cache/             Flask filesystem cache (gitignored)
 LICENSE.md         GPL-3.0 (code) / CC-BY-SA-4.0 (docs)
 ```
@@ -140,14 +141,38 @@ LICENSE.md         GPL-3.0 (code) / CC-BY-SA-4.0 (docs)
 
 bup runs as a `python3.11` webservice. In outline:
 
+**One-time setup:**
+
 ```bash
-# 1. code is pulled from this repo into the tool's www/ directory
+# 1. code: ./bupsave.sh  (commit → push → git pull on Toolforge → restart)
 # 2. build the virtualenv (inside the python3.11 image) from requirements.txt
-# 3. build the database from out.json
-python migrate.py
-# 4. start / restart the web service
+# 3. select the worklist backend (ToolsDB in production; default is sqlite):
+toolforge envvars create BUP_DB_BACKEND toolsdb
+# 4. create the ToolsDB pages table:
+python db.py --setup
+# 5. load the worklist (see "Rebuilding the worklist" below), then start:
 webservice python3.11 restart
 ```
+
+### Rebuilding the worklist (recurring)
+
+The corpus refresh **does not go away**: whenever the offline pipeline produces a
+new `out.json` (see *Data source*), reload the worklist with `migrate.py`. This
+is the normal, repeated path and targets whichever backend `BUP_DB_BACKEND`
+selects. On Toolforge it runs in the `python3.11` image (the venv), as the tool:
+
+```bash
+# drop the new out.json into db/, then:
+toolforge jobs run pages-rebuild --image python3.11 --mount all --wait 3600 \
+  --command "$HOME/www/python/venv/bin/python $HOME/www/python/src/migrate.py"
+```
+
+`migrate.py` drops and recreates the `pages` table and reloads it in file order,
+so ids are **renumbered**. That is expected for a corpus refresh — a fresh corpus
+supersedes the old worklist, and in-flight `/apply/<id>` links were tied to the
+old corpus anyway. (The id-preserving `migrate.py --copy-from` mode is only for
+moving an *existing* worklist between backends, e.g. the one-time SQLite→ToolsDB
+cutover — not for corpus refreshes.)
 
 The daily reconciler is a scheduled Toolforge job:
 
@@ -156,28 +181,28 @@ toolforge jobs run verify --image python3.11 --schedule "@daily" \
   --command ".../venv/bin/python .../src/verify.py" --mount all
 ```
 
-A second job backs up the database daily (online, integrity-checked snapshot
-into `$HOME/backups`, newest 7 kept):
+**Storage backend.** The worklist lives in **ToolsDB** — the shared, WMF-backed-up
+MariaDB on Toolforge — as of the 2026-06-17 cutover, alongside the user prefs the
+tool already keeps there (`userdb.py`). The backend is chosen at runtime by
+`BUP_DB_BACKEND` (`toolsdb` | `sqlite`); the original SQLite-on-NFS file
+(`db/bup.db`) remains a selectable fallback and the rollback target. Design and
+runbook: `docs/toolsdb-migration.md`, `docs/toolsdb-cutover.md`.
 
-```bash
-toolforge jobs run backup --image python3.11 --schedule "@daily" \
-  --command ".../venv/bin/python .../src/backup.py" --mount all
-```
-
-**SQLite on NFS:** `bup.db` lives on Toolforge NFS and is written from two
-hosts — the webservice pod and the `verify` job pod. It therefore runs in
-rollback-journal mode (`db.connect()`), **not** WAL: WAL's shared-memory index
-is not coherent across hosts and will corrupt the file (it did once). The
-small, immediately-committed writes plus `busy_timeout` keep cross-host
-contention safe. For heavier concurrency the durable fix is to move this table
-to ToolsDB (MariaDB), which the tool already uses for user prefs (`userdb.py`).
+SQLite on NFS was the original store but is single-host: `bup.db` was written
+from two hosts — the webservice pod and the `verify` job pod — which is the
+hazard ToolsDB removes. In SQLite mode `db.connect()` uses rollback-journal mode
+(**not** WAL — WAL's shared-memory index is not coherent across hosts and
+corrupted the file once); a daily `backup.py` job kept integrity-checked
+snapshots in `$HOME/backups`. On ToolsDB that backup job is unnecessary (WMF
+backs ToolsDB up centrally) and is retired after the post-cutover grace period.
 
 ## Data source
 
 The citation→archive.org matching is produced by a separate offline pipeline
 (not in this repo) that scans English Wikipedia and queries Internet Archive's
-full-text index, emitting `out.json`. Rebuilding the full corpus is expensive, so `bup.db` is refreshed only occasionally; the daily
-`verify.py` job keeps the worklist accurate in between.
+full-text index, emitting `out.json`. Rebuilding the full corpus is expensive, so
+the worklist is refreshed only occasionally (see *Rebuilding the worklist*); the
+daily `verify.py` job keeps the worklist accurate in between.
 
 ## License
 

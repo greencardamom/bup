@@ -61,8 +61,9 @@ cat $HOME/bup-pages-cutover.out      # expect: copied 154288 rows ... (ids PRESE
 # (c) flip the backend for the webservice + all jobs
 toolforge envvars create BUP_DB_BACKEND toolsdb
 
-# (d) bring the webservice back up on ToolsDB
-webservice start
+# (d) bring the webservice back up on ToolsDB. Name the type explicitly --
+#     a bare `webservice start` looks for lighttpd/public_html and fails here.
+webservice python3.11 start
 ```
 
 Verify the row count landed before opening up traffic:
