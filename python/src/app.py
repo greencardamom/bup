@@ -424,11 +424,11 @@ def _intersection_view(conn, ctx, view, wiki_id):
     their target from ?name=; watchlist needs none."""
     ua = _user_agent()
     api_url = wikis.api_url(wiki_id)
-    titles, ran = [], False
+    titles, ran, complete = [], False, True
 
     if view == 'watchlist':
         ran = True
-        titles = wiki.fetch_watchlist(
+        titles, complete = wiki.fetch_watchlist(
             auth=_oauth_auth(), user_agent=ua, api_url=api_url)
     else:
         name = request.args.get('name', '').strip()
@@ -438,17 +438,21 @@ def _intersection_view(conn, ctx, view, wiki_id):
             if view == 'category':
                 cat = (name if name.lower().startswith('category:')
                        else 'Category:' + name)
-                titles = wiki.fetch_category_members(
-                    cat, user_agent=ua, api_url=api_url)
+                titles, complete = wiki.fetch_category_members(
+                    cat, auth=_oauth_auth(), user_agent=ua, api_url=api_url)
             else:  # backlinks
-                titles = wiki.fetch_backlinks(
-                    name, user_agent=ua, api_url=api_url)
+                titles, complete = wiki.fetch_backlinks(
+                    name, auth=_oauth_auth(), user_agent=ua, api_url=api_url)
 
     if ran:
         rows = dbmod.pages_present(conn, titles)
         rows.sort(key=lambda r: r['count'], reverse=True)
         ctx['rows'] = rows
         ctx['scanned'] = len(titles)
+        # When the live fetch was cut short (time budget / page failure / cap),
+        # the intersection only covers the first `scanned` titles -- flag it so
+        # the template can warn the list is partial.
+        ctx['incomplete'] = not complete
 
 
 # --- Dashboard (TOOLS) ----------------------------------------------------

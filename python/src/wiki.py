@@ -82,6 +82,12 @@ MAXLAG_STEP = 5            # ... grows by this each retry (linear, uncapped)
 # -- the user can just click again. The background verifier can afford to wait.
 INTERACTIVE_RETRIES = 2
 BATCH_RETRIES = 20         # background verifier (matches the awk bot's wiki tries)
+# A paginated list query (watchlist/category/backlinks) chains many _api_call
+# invocations, so the per-call retry budget alone does NOT bound the request: a
+# heavily-linked target can be tens of pages. This wall-clock cap stops the
+# pagination loop once a foreground request has spent too long, returning a
+# partial (flagged-incomplete) list rather than holding a uWSGI worker forever.
+LIST_TIME_BUDGET = 60
 
 
 def _retry_after(resp, default):
@@ -309,39 +315,48 @@ def fetch_revids_batch(titles, user_agent=None, timeout=60,
 
 def _fetch_titles(base_params, extract, auth=None, user_agent=None,
                   api_url=API_URL, max_titles=5000, timeout=60,
-                  max_retries=INTERACTIVE_RETRIES):
+                  max_retries=INTERACTIVE_RETRIES, time_budget=LIST_TIME_BUDGET):
     """Run a paginated list query, accumulating titles from `extract(data)`
-    until exhausted or `max_titles`. Returns whatever was gathered when a page
-    fails (callers treat a short/empty list as "no intersection found")."""
+    until exhausted, `max_titles`, or the `time_budget` wall-clock cap.
+
+    Returns (titles, complete). `complete` is True only when the full list was
+    exhausted; it is False when the result is partial -- a page fetch failed,
+    the `max_titles` cap was hit, or the time budget ran out -- so the caller
+    can tell the user the list is truncated. A short/empty list is otherwise
+    treated as "no intersection found"."""
     params = dict(base_params)
     titles = []
+    start = time.monotonic()
 
     for _ in range(200):  # hard stop against pathological continue loops
         data = _api_call(api_url, params, auth=auth, user_agent=user_agent,
                          method="GET", timeout=timeout, max_retries=max_retries)
         if data is None:
-            return titles
+            return titles, False
 
         for item in extract(data):
             t = item.get("title")
             if t:
                 titles.append(t)
         if len(titles) >= max_titles:
-            return titles[:max_titles]
+            return titles[:max_titles], False
 
         cont = data.get("continue")
         if not cont:
-            return titles
+            return titles, True
+        if time.monotonic() - start >= time_budget:
+            return titles, False  # out of time -- return what we have, partial
         params.update(cont)
 
-    return titles
+    return titles, False
 
 
 def fetch_watchlist(auth=None, user_agent=None, api_url=API_URL, max_titles=5000):
     """Main-namespace titles on the logged-in user's watchlist. Requires an
-    authenticated `auth` (the watchlist is per-user); returns [] without it."""
+    authenticated `auth` (the watchlist is per-user); returns ([], True)
+    without it. Returns (titles, complete) -- see _fetch_titles."""
     if auth is None:
-        return []
+        return [], True
     params = {"action": "query", "list": "watchlistraw", "wrnamespace": 0,
               "wrlimit": "max", "format": "json", "formatversion": 2}
 
@@ -353,10 +368,14 @@ def fetch_watchlist(auth=None, user_agent=None, api_url=API_URL, max_titles=5000
                          api_url=api_url, max_titles=max_titles)
 
 
-def fetch_category_members(category, user_agent=None, api_url=API_URL,
+def fetch_category_members(category, auth=None, user_agent=None, api_url=API_URL,
                            max_titles=5000):
     """Main-namespace page titles in `category` (full title, e.g.
-    'Category:1980s films'). Subcategories/files are excluded (cmtype=page)."""
+    'Category:1980s films'). Subcategories/files are excluded (cmtype=page).
+    `auth` signs the read with the user's OAuth token for the authenticated
+    rate limit -- without it the WMF edge 429s anonymous reads, and the
+    pagination loop then backs off long enough to blow the request timeout.
+    Returns (titles, complete) -- see _fetch_titles."""
     params = {"action": "query", "list": "categorymembers", "cmtitle": category,
               "cmnamespace": 0, "cmtype": "page", "cmlimit": "max",
               "format": "json", "formatversion": 2}
@@ -364,12 +383,17 @@ def fetch_category_members(category, user_agent=None, api_url=API_URL,
     def extract(data):
         return data.get("query", {}).get("categorymembers", [])
 
-    return _fetch_titles(params, extract, user_agent=user_agent,
+    return _fetch_titles(params, extract, auth=auth, user_agent=user_agent,
                          api_url=api_url, max_titles=max_titles)
 
 
-def fetch_backlinks(title, user_agent=None, api_url=API_URL, max_titles=5000):
-    """Main-namespace pages that link to `title` (the "What links here" set)."""
+def fetch_backlinks(title, auth=None, user_agent=None, api_url=API_URL,
+                    max_titles=5000):
+    """Main-namespace pages that link to `title` (the "What links here" set).
+    `auth` signs the read with the user's OAuth token for the authenticated
+    rate limit -- without it the WMF edge 429s anonymous reads, and the
+    pagination loop then backs off long enough to blow the request timeout.
+    Returns (titles, complete) -- see _fetch_titles."""
     params = {"action": "query", "list": "backlinks", "bltitle": title,
               "blnamespace": 0, "bllimit": "max",
               "format": "json", "formatversion": 2}
@@ -377,7 +401,7 @@ def fetch_backlinks(title, user_agent=None, api_url=API_URL, max_titles=5000):
     def extract(data):
         return data.get("query", {}).get("backlinks", [])
 
-    return _fetch_titles(params, extract, user_agent=user_agent,
+    return _fetch_titles(params, extract, auth=auth, user_agent=user_agent,
                          api_url=api_url, max_titles=max_titles)
 
 

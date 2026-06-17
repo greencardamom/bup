@@ -39,6 +39,16 @@
 </table>
 {% endmacro %}
 
+{# Shown when a live list fetch (watchlist/category/backlinks) was cut short --
+   by the 5,000-entry cap, the 60-second fetch budget, or an API hiccup: the
+   intersection below only covers the first `scanned` titles, so some matches
+   may be missing. Worded generically since any of those causes can trip it. #}
+{% macro incomplete_notice(scanned) %}
+<div class="bu-notice bu-empty">Only the first {{ "{:,}".format(scanned) }}
+  entries were checked (fetch limit reached), so this list may be incomplete.
+  Try a narrower query to see all matches.</div>
+{% endmacro %}
+
 {% block content %}
 
 {% if not has_data %}
@@ -118,6 +128,7 @@
   {% endif %}
 
 {% elif view == 'watchlist' %}
+  {% if incomplete %}{{ incomplete_notice(scanned) }}{% endif %}
   {% if rows %}
     <p class="bu-summary">{{ rows|length }} of your
       {{ "{:,}".format(scanned) }} watchlisted article{{ 's' if scanned != 1 else '' }}
@@ -137,6 +148,7 @@
     <input class="bu-btn bu-btn-primary" type="submit" value="Find">
   </form>
   {% if name %}
+    {% if incomplete %}{{ incomplete_notice(scanned) }}{% endif %}
     {% if rows %}
       <p class="bu-summary">{{ rows|length }} of {{ "{:,}".format(scanned) }}
         article{{ 's' if scanned != 1 else '' }} in “{{ name }}” have suggestions.</p>
@@ -160,6 +172,7 @@
     <input class="bu-btn bu-btn-primary" type="submit" value="Find">
   </form>
   {% if name %}
+    {% if incomplete %}{{ incomplete_notice(scanned) }}{% endif %}
     {% if rows %}
       <p class="bu-summary">{{ rows|length }} of {{ "{:,}".format(scanned) }}
         page{{ 's' if scanned != 1 else '' }} linking to “{{ name }}” have suggestions.</p>
