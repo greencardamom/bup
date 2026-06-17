@@ -15,7 +15,7 @@ editing tool and as a read-only data API.
 ## What it does
 
 Many Wikipedia citations name a book or journal that Internet Archive has
-digitized, but link nowhere. bup proposes a replacement citation that adds the
+digitized, but links nowhere. bup proposes a replacement citation that adds the
 exact `archive.org/details/<id>/page/<n>` link — turning a dead reference into
 one a reader can open and verify.
 
