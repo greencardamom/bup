@@ -20,9 +20,6 @@ python/venv/
 venv/
 .venv/
 
-# --- Local-only deploy helper (machine-specific path; not deployed) ---
-bupsave.sh
-
 # --- Editor / backup / swap files ---
 *.save
 *.save.*
