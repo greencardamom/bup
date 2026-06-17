@@ -164,7 +164,7 @@ def log_line(filename, line):
     # Logs live alongside the database (the db/ directory). These contain
     # usernames, so the file is owner-only (0600); set on creation so a
     # freshly-created log (e.g. on a new deploy) is private from the start.
-    path = os.path.join(os.path.dirname(dbmod.db_path()), filename)
+    path = os.path.join(dbmod.data_dir(), filename)
     try:
         existed = os.path.exists(path)
         with open(path, "a") as f:
@@ -460,8 +460,7 @@ def _intersection_view(conn, ctx, view, wiki_id):
 def _stats_dir():
     """Where the daily job writes booksup-stats-<year>.jsonl. Mirrors stats.py:
     www/static, the sibling of db/ (served at tools-static.wmflabs.org/bup)."""
-    return os.path.join(os.path.dirname(os.path.dirname(dbmod.db_path())),
-                        "static")
+    return os.path.join(os.path.dirname(dbmod.data_dir()), "static")
 
 
 def _read_stats_records():
@@ -490,7 +489,7 @@ def _read_stats_records():
 
 
 def _stats_users_path():
-    return os.path.join(os.path.dirname(dbmod.db_path()), "stats_users.txt")
+    return os.path.join(dbmod.data_dir(), "stats_users.txt")
 
 
 def _normalize_user(name):

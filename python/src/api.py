@@ -44,7 +44,7 @@ def _log_hit(endpoint):
     """Append one line per API call for the daily stats job (stats.py).
     Format: '<utc-iso> <endpoint>'. Append-only; never read by the app."""
     try:
-        path = os.path.join(os.path.dirname(dbmod.db_path()), "api_hits.log")
+        path = os.path.join(dbmod.data_dir(), "api_hits.log")
         with open(path, "a", encoding="utf-8") as f:
             f.write("%s %s\n" % (datetime.utcnow().isoformat(), endpoint))
     except OSError:

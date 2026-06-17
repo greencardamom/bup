@@ -33,7 +33,7 @@ from datetime import date, timedelta, datetime
 
 import db as dbmod
 
-DB_DIR = os.path.dirname(dbmod.db_path())
+DB_DIR = dbmod.data_dir()
 # www/static is served at https://tools-static.wmflabs.org/bup/ (sibling of db/)
 STATIC_DIR = os.path.join(os.path.dirname(DB_DIR), "static")
 LOG_TXT = os.path.join(DB_DIR, "log.txt")

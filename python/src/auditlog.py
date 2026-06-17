@@ -26,7 +26,7 @@ def _enc(s):
 
 
 def _logdir():
-    return os.path.dirname(dbmod.db_path())
+    return dbmod.data_dir()
 
 
 def _append(filename, fields):
