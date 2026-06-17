@@ -19,9 +19,9 @@
 #       --command "$HOME/www/python/venv/bin/python $HOME/www/python/src/backup.py" \
 #       --mount all
 #
-# Backups land in $HOME/backups (sibling of db/); override with BUP_BACKUP_DIR.
-# They share the same NFS volume, so this guards against logical corruption
-# (the failure we actually saw), not against a loss of the volume itself.
+# Backups land in $HOME/backups (outside the www/ git checkout); override with
+# BUP_BACKUP_DIR. They share the same NFS volume, so this guards against logical
+# corruption (the failure we actually saw), not against a loss of the volume.
 
 import os
 import sys
@@ -36,9 +36,11 @@ KEEP = 7   # most-recent backups to retain
 
 
 def backup_dir():
+    # Default to $HOME/backups -- OUTSIDE the git checkout (the db lives under
+    # $HOME/www, which is the repo working tree; keeping multi-hundred-MB
+    # snapshots in there would bloat git and risk a `git clean` wiping them).
     return os.environ.get(
-        "BUP_BACKUP_DIR",
-        os.path.join(os.path.dirname(os.path.dirname(dbmod.db_path())), "backups"))
+        "BUP_BACKUP_DIR", os.path.join(os.path.expanduser("~"), "backups"))
 
 
 def _integrity_ok(path):
