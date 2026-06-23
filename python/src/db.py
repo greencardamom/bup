@@ -36,6 +36,7 @@
 
 import os
 import json
+import random
 import sqlite3
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
@@ -430,7 +431,17 @@ def fetch_page_batch(conn, after_id, limit):
 
 
 def random_pages(conn, limit=1, min_count=0, ctype=None):
-    """`limit` random worklist pages (for the gadget's 'random article')."""
+    """`limit` random worklist pages (for the gadget's 'random article' and
+    /main's default 'random' view).
+
+    SQLite uses ORDER BY RANDOM() -- cheap on the local file. On ToolsDB
+    (MariaDB) the equivalent ORDER BY RAND() filesorts the entire ~150k-row
+    `pages` table to pick a handful of rows, which blows past the query timeout
+    and 500s /main (whose default view is 'random'). There we sample by primary
+    key instead: pick random ids and take the next row at or above each -- an
+    index range scan that touches only a few rows per pick. The result is
+    slightly biased toward rows after id gaps, which is fine for a "random
+    article" feature."""
     where, args = ["count >= ?"], [int(min_count)]
     if ctype == "book":
         where.append("book_count > 0")
@@ -438,10 +449,40 @@ def random_pages(conn, limit=1, min_count=0, ctype=None):
         where.append("sim_count > 0")
     elif ctype == "ref":
         where.append("ref_count > 0")
-    sql = ("SELECT id, page, count, book_count, sim_count, ref_count FROM pages "
-           "WHERE %s ORDER BY RANDOM() LIMIT ?" % " AND ".join(where))
-    args.append(int(limit))
-    return _select(conn, sql, args)
+    cols = "id, page, count, book_count, sim_count, ref_count"
+    where_sql = " AND ".join(where)
+    limit = int(limit)
+
+    if _is_sqlite(conn):
+        sql = ("SELECT %s FROM pages WHERE %s ORDER BY RANDOM() LIMIT ?"
+               % (cols, where_sql))
+        return _select(conn, sql, args + [limit])
+
+    # MariaDB: id-range sampling -- no full-table filesort.
+    row = _select_one(conn, "SELECT MAX(id) AS m FROM pages")
+    max_id = (row or {}).get("m") or 0
+    if not max_id:
+        return []
+    pick_sql = ("SELECT %s FROM pages WHERE id >= ? AND %s ORDER BY id LIMIT 1"
+                % (cols, where_sql))
+    # First matching row from the table start -- the wrap target when a pick
+    # lands past the last qualifying row.
+    first_sql = ("SELECT %s FROM pages WHERE %s ORDER BY id LIMIT 1"
+                 % (cols, where_sql))
+    out, seen = [], set()
+    # Bounded attempts so a sparse filter (a ctype with few matches) cannot
+    # loop forever; it just returns fewer than `limit` rows.
+    for _ in range(limit * 10):
+        if len(out) >= limit:
+            break
+        rid = random.randint(1, max_id)
+        r = _select_one(conn, pick_sql, [rid] + args)
+        if r is None:
+            r = _select_one(conn, first_sql, args)
+        if r and r["id"] not in seen:
+            seen.add(r["id"])
+            out.append(r)
+    return out
 
 
 def pages_present(conn, titles):
